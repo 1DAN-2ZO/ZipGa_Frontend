@@ -3,8 +3,13 @@ import { createRng } from '../prng'
 /** 3×3 격자. */
 export const HOLE_COUNT = 9
 
-/** 한 판에 나오는 두더지 수. 정규화의 분모가 된다. */
-export const MOLE_COUNT = 24
+/**
+ * 한 판에 나오는 두더지 수. 정규화의 분모가 된다.
+ *
+ * 제한시간(초)과 같은 값으로 두면 등장 간격이 1초가 된다.
+ * 난이도를 바꾸려면 이 둘의 비율을 건드린다.
+ */
+export const MOLE_COUNT = 15
 
 /** 표시 시간. 후반으로 갈수록 END에 가까워져 난이도가 오른다. */
 const VISIBLE_START_MS = 1050

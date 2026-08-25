@@ -127,7 +127,7 @@ export const whackAMole: GameModule = {
     name: '두더지 잡기',
     emoji: '🐹',
     desc: '튀어나오는 두더지를 제한시간 안에 몇 마리나 잡을 수 있나',
-    timeLimitSec: 20,
+    timeLimitSec: 15,
   },
   Component: WhackAMoleGame,
 }

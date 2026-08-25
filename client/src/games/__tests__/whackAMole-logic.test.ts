@@ -5,7 +5,7 @@ import {
   normalize,
 } from '../whackAMole/logic'
 
-const DURATION = 20_000
+const DURATION = 15_000
 
 describe('buildMoles', () => {
   it('정해진 마리 수만큼 만든다', () => {
@@ -110,8 +110,9 @@ describe('normalize', () => {
     expect(normalize(MOLE_COUNT + 10)).toBe(100)
   })
 
-  it('기준선 40점을 넘으려면 10마리가 필요하다', () => {
-    expect(normalize(9)).toBeLessThan(40)
-    expect(normalize(10)).toBeGreaterThanOrEqual(40)
+  it('기준선 40점을 넘으려면 전체의 40%가 필요하다', () => {
+    const needed = Math.ceil(MOLE_COUNT * 0.4)
+    expect(normalize(needed - 1)).toBeLessThan(40)
+    expect(normalize(needed)).toBeGreaterThanOrEqual(40)
   })
 })
