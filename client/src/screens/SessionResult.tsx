@@ -1,9 +1,9 @@
-import { MaterialIcons } from '@expo/vector-icons'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { colors, fonts, radius } from '../theme/colors'
+
+const AUTO_ADVANCE_MS = 3000
 
 export interface ResultPlayer {
   id: string
@@ -17,9 +17,9 @@ export interface SessionResultProps {
   threshold: number
   myPlayerId: string
   onSettings: () => void
-  /** 벌칙자: 카운트다운이 끝난 뒤 딥링크+강퇴 연출로 넘어간다 */
+  /** 벌칙자: 3초 뒤 자동으로 호출된다. 딥링크+강퇴 연출로 넘어간다 */
   onCallTaxi: () => void
-  /** 통과자: 로비로 돌아간다 */
+  /** 통과자: 3초 뒤 자동으로 호출된다. 로비로 돌아간다 */
   onBackToLobby: () => void
 }
 
@@ -32,8 +32,20 @@ export function SessionResult({
   onBackToLobby,
 }: SessionResultProps) {
   const sorted = [...players].sort((a, b) => b.avgScore - a.avgScore)
-  const isPenalized = sorted.find((p) => p.id === myPlayerId)?.avgScore ?? threshold
-  const iAmPenalized = isPenalized < threshold
+  const myScore = sorted.find((p) => p.id === myPlayerId)?.avgScore ?? threshold
+  const iAmPenalized = myScore < threshold
+
+  const advanceRef = useRef(false)
+  useEffect(() => {
+    advanceRef.current = false
+    const advance = iAmPenalized ? onCallTaxi : onBackToLobby
+    const timer = setTimeout(() => {
+      if (advanceRef.current) return
+      advanceRef.current = true
+      advance()
+    }, AUTO_ADVANCE_MS)
+    return () => clearTimeout(timer)
+  }, [iAmPenalized, onCallTaxi, onBackToLobby])
 
   return (
     <View style={styles.screen}>
@@ -55,11 +67,12 @@ export function SessionResult({
         ))}
       </View>
 
-      {iAmPenalized ? (
-        <TaxiButton onDone={onCallTaxi} />
-      ) : (
-        <PillButton label="로비로 돌아가기" icon="power-settings-new" onPress={onBackToLobby} />
-      )}
+      <View style={styles.outcome}>
+        <Text style={styles.outcomeLabel}>{iAmPenalized ? '탈락' : '생존'}</Text>
+        <Text style={styles.outcomeMessage}>
+          {iAmPenalized ? '3초 후에 택시를 호출합니다.' : '3초 후에 대기실로 이동합니다.'}
+        </Text>
+      </View>
     </View>
   )
 }
@@ -102,35 +115,6 @@ function ResultRow({
   )
 }
 
-/** 벌칙 카운트다운. 0이 되면 정확히 한 번 onDone을 부른다. */
-function TaxiButton({ onDone }: { onDone: () => void }) {
-  const [count, setCount] = useState<number | null>(null)
-  const doneRef = useRef(false)
-
-  useEffect(() => {
-    if (count === null) return
-    if (count === 0) {
-      if (!doneRef.current) {
-        doneRef.current = true
-        onDone()
-      }
-      return
-    }
-    const timer = setTimeout(() => setCount((c) => (c ?? 1) - 1), 1000)
-    return () => clearTimeout(timer)
-  }, [count, onDone])
-
-  if (count !== null) {
-    return (
-      <View style={styles.countdown}>
-        <Text style={styles.countdownText}>{count > 0 ? count : '집 가'}</Text>
-      </View>
-    )
-  }
-
-  return <PillButton label="택시 부르기" variant="secondary" icon="local-taxi" onPress={() => setCount(3)} />
-}
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -140,7 +124,6 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   list: {
-    flex: 1,
     gap: 10,
     marginTop: 20,
   },
@@ -224,13 +207,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.primary,
   },
-  countdown: {
+  outcome: {
+    flex: 1,
     alignItems: 'center',
-    paddingVertical: 18,
+    justifyContent: 'center',
+    gap: 16,
   },
-  countdownText: {
+  outcomeLabel: {
     fontFamily: fonts.heading,
-    fontSize: 28,
+    fontSize: 48,
     color: colors.primary,
+  },
+  outcomeMessage: {
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: colors.textSecondary,
   },
 })
