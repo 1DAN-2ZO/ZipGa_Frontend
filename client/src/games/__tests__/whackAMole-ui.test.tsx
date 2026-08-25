@@ -1,7 +1,15 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import React from 'react'
 import { whackAMole } from '../whackAMole'
-import { buildMoles, HOLE_COUNT, MOLE_COUNT, normalize } from '../whackAMole/logic'
+import {
+  BOMB_COUNT,
+  buildSpawns,
+  HOLE_COUNT,
+  MOLE_COUNT,
+  netScore,
+  normalize,
+  type Spawn,
+} from '../whackAMole/logic'
 
 const Game = whackAMole.Component
 const LIMIT = whackAMole.info.timeLimitSec
@@ -10,16 +18,8 @@ const DURATION = LIMIT * 1000
 const PAST_END = DURATION + 200
 
 beforeEach(() => jest.useFakeTimers())
-afterEach(() => {
-  jest.useRealTimers()
-})
+afterEach(() => jest.useRealTimers())
 
-/**
- * 타이머를 ms만큼 진행시킨다.
- *
- * React 19 + RNTL 14에서는 비동기 act를 await해야 한다. 동기 act로 감싸면
- * 인터벌 틱이 겹쳐 act 중첩 경고가 나고 상태가 반영되지 않는다.
- */
 async function advance(ms: number) {
   await act(async () => {
     jest.advanceTimersByTime(ms)
@@ -30,17 +30,41 @@ async function advance(ms: number) {
 async function renderGame(seed = 7) {
   const onFinish = jest.fn()
   await render(<Game seed={seed} timeLimitSec={LIMIT} onFinish={onFinish} />)
+
   /**
-   * RNTL 14의 fireEvent는 비동기다. await하지 않으면 act 스코프가 다음
+   * RNTL 14의 fireEvent도 비동기다. await하지 않으면 act 스코프가 다음
    * 테스트로 새어 나가 그쪽 렌더를 통째로 날려버린다.
    */
-  const whack = async (hole: number) => {
+  const strike = async (hole: number) => {
     await act(async () => {
       fireEvent.press(screen.getByTestId(`hole-${hole}`))
     })
   }
-  const result = () => onFinish.mock.calls[0]?.[0]
-  return { onFinish, whack, result, moles: buildMoles(seed, DURATION) }
+
+  return {
+    onFinish,
+    strike,
+    result: () => onFinish.mock.calls[0]?.[0],
+    spawns: buildSpawns(seed, DURATION),
+  }
+}
+
+/** 그 등장물이 떠 있는 한가운데 시각. */
+const midOf = (s: Spawn) => Math.floor((s.showAtMs + s.hideAtMs) / 2)
+
+/** 등장 순서대로 n개를 치고, 매번 그 시각까지 시간을 진행시킨다. */
+async function strikeInOrder(
+  targets: Spawn[],
+  strike: (hole: number) => Promise<void>,
+) {
+  let at = 0
+  for (const s of targets) {
+    const mid = midOf(s)
+    await advance(mid - at)
+    at = mid
+    await strike(s.hole)
+  }
+  return at
 }
 
 describe('whackAMole 모듈 정보', () => {
@@ -69,7 +93,7 @@ describe('whackAMole 화면', () => {
     expect(result()).toMatchObject({ finished: true })
   })
 
-  it('한 마리도 못 잡으면 0점이다', async () => {
+  it('아무것도 안 치면 0점이다', async () => {
     const { result } = await renderGame()
     await advance(PAST_END)
 
@@ -77,46 +101,77 @@ describe('whackAMole 화면', () => {
   })
 
   it('두더지를 잡으면 점수가 오른다', async () => {
-    const { moles, whack, result } = await renderGame()
-    const first = moles[0]
-    const mid = Math.floor((first.showAtMs + first.hideAtMs) / 2)
+    const { spawns, strike, result } = await renderGame()
+    const moles = spawns.filter((s) => s.kind === 'mole').slice(0, 3)
 
-    await advance(mid)
-    await whack(first.hole)
-    await advance(PAST_END - mid)
+    const at = await strikeInOrder(moles, strike)
+    await advance(PAST_END - at)
 
-    expect(result()).toMatchObject({ score: 1, normalizedScore: normalize(1) })
+    expect(result()).toMatchObject({ score: 3, normalizedScore: normalize(3) })
   })
 
-  it('같은 두더지를 두 번 쳐도 한 번만 센다', async () => {
-    const { moles, whack, result } = await renderGame()
-    const first = moles[0]
-    const mid = Math.floor((first.showAtMs + first.hideAtMs) / 2)
+  it('폭탄을 치면 점수가 깎인다', async () => {
+    const { spawns, strike, result } = await renderGame()
+    const moles = spawns.filter((s) => s.kind === 'mole').slice(0, 3)
+    const bomb = spawns.find((s) => s.kind === 'bomb')!
+    const targets = [...moles, bomb].sort((a, b) => a.showAtMs - b.showAtMs)
 
-    await advance(mid)
-    await whack(first.hole)
-    await whack(first.hole)
-    await advance(PAST_END - mid)
+    const at = await strikeInOrder(targets, strike)
+    await advance(PAST_END - at)
+
+    expect(result().score).toBe(netScore(3, 1))
+  })
+
+  it('폭탄을 놔두면 아무 일도 없다', async () => {
+    const { spawns, strike, result } = await renderGame()
+    const moles = spawns.filter((s) => s.kind === 'mole').slice(0, 3)
+
+    const at = await strikeInOrder(moles, strike)
+    await advance(PAST_END - at)
+
+    // 폭탄이 3개 지나갔지만 치지 않았으므로 감점이 없다.
+    expect(result().score).toBe(3)
+  })
+
+  it('폭탄만 쳐도 점수가 0 아래로 안 내려간다', async () => {
+    const { spawns, strike, result } = await renderGame()
+    const bombs = spawns.filter((s) => s.kind === 'bomb')
+    expect(bombs).toHaveLength(BOMB_COUNT)
+
+    const at = await strikeInOrder(bombs, strike)
+    await advance(PAST_END - at)
+
+    expect(result().score).toBe(0)
+    expect(result().normalizedScore).toBe(0)
+  })
+
+  it('같은 것을 두 번 쳐도 한 번만 센다', async () => {
+    const { spawns, strike, result } = await renderGame()
+    const mole = spawns.find((s) => s.kind === 'mole')!
+
+    await advance(midOf(mole))
+    await strike(mole.hole)
+    await strike(mole.hole)
+    await advance(PAST_END - midOf(mole))
 
     expect(result().score).toBe(1)
   })
 
   it('빈 구멍을 쳐도 점수가 깎이지 않는다', async () => {
-    const { moles, whack, result } = await renderGame()
-    const first = moles[0]
-    const mid = Math.floor((first.showAtMs + first.hideAtMs) / 2)
+    const { spawns, strike, result } = await renderGame()
+    const mole = spawns.find((s) => s.kind === 'mole')!
+    const mid = midOf(mole)
 
     await advance(mid)
 
-    // 그 시각에 열려 있지 않은 구멍을 골라 헛스윙한다
     const open = new Set(
-      moles.filter((m) => m.showAtMs <= mid && mid < m.hideAtMs).map((m) => m.hole),
+      spawns.filter((s) => s.showAtMs <= mid && mid < s.hideAtMs).map((s) => s.hole),
     )
     const empty = Array.from({ length: HOLE_COUNT }, (_, h) => h).find((h) => !open.has(h))
     expect(empty).toBeDefined()
 
-    await whack(empty as number)
-    await whack(first.hole)
+    await strike(empty as number)
+    await strike(mole.hole)
     await advance(PAST_END - mid)
 
     expect(result().score).toBe(1)
