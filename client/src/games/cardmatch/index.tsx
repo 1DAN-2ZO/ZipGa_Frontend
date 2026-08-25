@@ -266,12 +266,33 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
     [done, boards, playMs, flipTo, pauseClock, collectCards, openBoard, later],
   );
 
-  /* ---------- 시작 / 정리 ---------- */
+  /* ---------- 시작 / 정리 ----------
+     seed 가 바뀌면 스스로 처음부터 다시 시작한다.
+     호스트가 판마다 key 로 재마운트해 주면 이 경로는 안 쓰이지만,
+     같은 컴포넌트에 seed 만 바꿔 넣는 방식이어도 정상 동작하도록 대비해 둔다. */
   useEffect(() => {
+    finishedRef.current = false;
+    lockRef.current = true;
+    openRef.current = [];
+    matchedRef.current = 0;
+    totalRef.current = 0;
+    boardIdxRef.current = 0;
+    lastMatchRef.current = null;
+    elapsedRef.current = 0;
+    runningRef.current = false;
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+    if (endTimerRef.current) { clearTimeout(endTimerRef.current); endTimerRef.current = null; }
+    if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
+
+    setTotal(0);
+    setLeft(limitMs);
+
     openBoard(0);
     tickRef.current = setInterval(() => {
       setLeft(Math.max(0, limitMs - playMs()));
     }, 100);
+
     return () => {
       finishedRef.current = true;
       if (tickRef.current) clearInterval(tickRef.current);
@@ -279,7 +300,7 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
       timersRef.current.forEach(clearTimeout);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [seed, limitMs]);
 
   /* ---------- 렌더 ---------- */
   const secs = Math.ceil(left / 1000);
