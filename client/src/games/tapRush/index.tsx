@@ -24,7 +24,8 @@ function TapRushGame({ seed, timeLimitSec, onFinish }: GameProps) {
   onFinishRef.current = onFinish
 
   // 목표 도달과 시간 만료가 겹쳐도 정확히 한 번만 부른다.
-  const finish = (completed: boolean) => {
+  // 둘 다 정상 종료다 — finished는 중도 이탈만 false로 구분한다.
+  const finish = () => {
     if (finishedRef.current) return
     finishedRef.current = true
     if (timerRef.current !== null) {
@@ -35,7 +36,7 @@ function TapRushGame({ seed, timeLimitSec, onFinish }: GameProps) {
       normalizedScore: normalize(tapsRef.current),
       score: tapsRef.current,
       tiebreakMs: Date.now() - startedAtRef.current,
-      finished: completed,
+      finished: true,
     })
   }
 
@@ -44,7 +45,7 @@ function TapRushGame({ seed, timeLimitSec, onFinish }: GameProps) {
       const now = Date.now() - startedAtRef.current
       setElapsedMs(now)
       // 제한시간이 끝나면 스스로 종료하고 그때까지의 타수를 반환한다.
-      if (now >= durationMs) finish(false)
+      if (now >= durationMs) finish()
     }, TICK_MS)
     return () => {
       if (timerRef.current !== null) clearInterval(timerRef.current)
@@ -58,7 +59,7 @@ function TapRushGame({ seed, timeLimitSec, onFinish }: GameProps) {
     setTaps(tapsRef.current)
     // 목표를 채우면 시간이 남아도 즉시 끝낸다. 먼저 채운 사람이 먼저 끝나야
     // 만점자끼리 순위가 갈린다.
-    if (isComplete(tapsRef.current)) finish(true)
+    if (isComplete(tapsRef.current)) finish()
   }
 
   const remainSec = Math.max(0, Math.ceil((durationMs - elapsedMs) / 1000))

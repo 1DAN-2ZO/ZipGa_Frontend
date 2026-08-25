@@ -64,8 +64,8 @@ describe('tapRush 화면', () => {
     await advance(PAST_END)
 
     expect(onFinish).toHaveBeenCalledTimes(1)
-    // 목표를 못 채우고 시간이 끝났으므로 완주가 아니다.
-    expect(result()).toMatchObject({ finished: false })
+    // 목표를 못 채웠어도 시간을 정상적으로 소진했으므로 정상 종료다.
+    expect(result()).toMatchObject({ finished: true })
   })
 
   it('한 번도 안 누르면 0점이다', async () => {

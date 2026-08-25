@@ -28,7 +28,17 @@ export interface GameResult {
   score: number
   /** 걸린 시간(ms). 동점 판별용 — 항상 작을수록 유리하다. */
   tiebreakMs: number
-  /** 끝까지 완주했는지. 중도 이탈·시간 초과 시 false. */
+  /**
+   * 게임이 정상적으로 끝났는지.
+   *
+   * true  — 과제를 다 끝냈거나, 제한시간을 정상적으로 소진했다
+   * false — 중도 이탈(앱 종료·화면 이탈)로 끊겼다
+   *
+   * 두더지 잡기나 연타처럼 끝낼 과제가 없는 지속형 게임은 시간 만료가
+   * 곧 정상 종료다. 이런 게임에서 시간 초과를 false로 두면 "중도 이탈"로
+   * 잘못 읽힌다. 얼마나 잘했는지는 normalizedScore가, 얼마나 빨랐는지는
+   * tiebreakMs가 맡는다. 이 값은 모듈이 제 역할을 하고 끝났는지만 알린다.
+   */
   finished: boolean
 }
 
