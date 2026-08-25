@@ -27,8 +27,19 @@ import { RoomSetup } from './src/screens/RoomSetup'
 import { SessionResult } from './src/screens/SessionResult'
 import { Settings } from './src/screens/Settings'
 import { colors } from './src/theme/colors'
+import GameCheckHarness from './src/dev/GameCheckHarness'
 
-const SCREENS = ['Home', 'RoomSetup', 'CreateRoom', 'JoinRoom', 'Lobby', 'SessionResult', 'GoingHome', 'Settings'] as const
+const SCREENS = [
+  'Home',
+  'RoomSetup',
+  'CreateRoom',
+  'JoinRoom',
+  'Lobby',
+  'SessionResult',
+  'GoingHome',
+  'Settings',
+  'GameCheck',
+] as const
 type ScreenName = (typeof SCREENS)[number]
 
 const MOCK_RESULT_PLAYERS = [
@@ -347,6 +358,8 @@ export default function App() {
           onBack={() => setScreen('Home')}
         />
       )}
+      {/* 게임 담당자들이 시드 결정성을 두 폰에서 맞춰보는 확인용 화면. 실제 흐름과 무관하다 */}
+      {screen === 'GameCheck' && <GameCheckHarness />}
 
       <NicknameSheet
         visible={nicknameSheetVisible}
