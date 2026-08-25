@@ -24,22 +24,15 @@ import { Home } from './src/screens/Home'
 import { JoinRoom } from './src/screens/JoinRoom'
 import { Lobby, type LobbyPlayer } from './src/screens/Lobby'
 import { RoomSetup } from './src/screens/RoomSetup'
+import { GameSandbox } from './src/screens/GameSandbox'
+import { GoingHome } from './src/screens/GoingHome'
+import { Settings } from './src/screens/Settings'
 import { SessionResult } from './src/screens/SessionResult'
 import { Settings } from './src/screens/Settings'
 import { colors } from './src/theme/colors'
 import GameCheckHarness from './src/dev/GameCheckHarness'
 
-const SCREENS = [
-  'Home',
-  'RoomSetup',
-  'CreateRoom',
-  'JoinRoom',
-  'Lobby',
-  'SessionResult',
-  'GoingHome',
-  'Settings',
-  'GameCheck',
-] as const
+const SCREENS = ['Home', 'RoomSetup', 'CreateRoom', 'JoinRoom', 'Lobby', 'SessionResult', 'GoingHome', 'Game', 'Settings'] as const
 type ScreenName = (typeof SCREENS)[number]
 
 const MOCK_RESULT_PLAYERS = [
@@ -349,6 +342,7 @@ export default function App() {
           onStay={() => setScreen('Lobby')}
         />
       )}
+      {screen === 'Game' && <GameSandbox onSettings={() => setScreen('Settings')} />}
       {screen === 'Settings' && (
         <Settings
           soundEffectsEnabled={soundEffectsEnabled}

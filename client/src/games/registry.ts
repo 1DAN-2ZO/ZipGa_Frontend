@@ -4,6 +4,8 @@ import { bulletHell } from './bulletHell'
 import { leftRight } from './leftRight'
 import { sentenceCopy } from './sentenceCopy'
 import { spotDiff } from './spotDiff'
+import { tapRush } from './tapRush'
+import { whackAMole } from './whackAMole'
 
 /**
  * 등록된 미니게임 전체.
@@ -11,7 +13,7 @@ import { spotDiff } from './spotDiff'
  * 새 게임을 추가하려면 import 한 줄과 아래 배열에 한 줄만 넣으면 된다.
  * 이 파일이 게임 담당자들의 유일한 공유 지점이다.
  */
-export const GAMES: readonly GameModule[] = [sentenceCopy, bulletHell, spotDiff, leftRight]
+export const GAMES: readonly GameModule[] = [sentenceCopy, bulletHell, spotDiff, leftRight, whackAMole, tapRush]
 
 export function getGame(id: string): GameModule {
   const found = GAMES.find((g) => g.info.id === id)
