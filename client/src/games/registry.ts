@@ -1,5 +1,6 @@
 import { createRng } from './prng'
 import type { GameModule } from './types'
+import { tapRush } from './tapRush'
 import { whackAMole } from './whackAMole'
 
 /**
@@ -10,7 +11,7 @@ import { whackAMole } from './whackAMole'
  *
  * 한 세션이 랜덤 3판이므로 최종적으로 최소 3개가 필요하다. 총 10개 예정.
  */
-export const GAMES: readonly GameModule[] = [whackAMole]
+export const GAMES: readonly GameModule[] = [whackAMole, tapRush]
 
 export function getGame(id: string): GameModule {
   const found = GAMES.find((g) => g.info.id === id)
