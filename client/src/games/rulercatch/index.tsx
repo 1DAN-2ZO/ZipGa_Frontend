@@ -359,7 +359,7 @@ export const rulercatch: GameModule = {
     name: '자를 잡아라',
     emoji: '📏',
     desc: '튀어나오는 자를 최대한 빨리 멈추기 · 3라운드 합산',
-    timeLimitSec: 25,   // 3라운드가 보통 15~18초. 이건 안전망이다
+    timeLimitSec: 20,   // 팀 규칙: 모든 게임 20초
   },
   Component: RulerCatchGame,
 };
