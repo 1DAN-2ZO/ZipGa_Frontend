@@ -34,6 +34,9 @@ coverage/
 Thumbs.db
 desktop.ini
 
+# superpowers SDD 작업 공간 (스크래치)
+.superpowers/
+
 # logs
 *.log
 npm-debug.log*
