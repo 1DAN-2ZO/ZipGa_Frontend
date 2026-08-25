@@ -234,6 +234,17 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
     else if (phaseRef.current === 'emerging') record('caught', Date.now() - startAtRef.current);
   }, [record]);
 
+  /* ---------- 안전망 ----------
+     계약 3번(제한시간이 끝나면 스스로 종료)은 무대 높이 측정과 무관하게 지켜져야 한다.
+     아래 시작 effect 는 onLayout 이 높이를 알려줄 때까지 기다리는데,
+     안전망까지 그 안에 두면 측정이 늦거나 실패했을 때 게임이 영영 안 끝난다.
+     호스트가 onFinish 만 기다리므로 그 경우 세션 전체가 멈춘다. */
+  useEffect(() => {
+    const guard = setTimeout(() => finish(false), limitMs);
+    return () => clearTimeout(guard);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed, limitMs]);
+
   /* ---------- 시작 / 정리 ---------- */
   useEffect(() => {
     if (stageH <= 0) return;                  // 무대 높이를 재고 나서 시작한다
@@ -246,10 +257,8 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
     setBig('0');
 
     startRound(0);
-    const guard = setTimeout(() => finish(false), limitMs);   // 안전망
     return () => {
       finishedRef.current = true;
-      clearTimeout(guard);
       timersRef.current.forEach(clearTimeout);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

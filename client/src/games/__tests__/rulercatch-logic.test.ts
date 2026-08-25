@@ -7,7 +7,7 @@ import {
   WAIT_MAX_MS,
   WAIT_MIN_MS,
   averageCaughtMs,
-  fallDistanceCm,
+  emergedCm,
   makeWaits,
   normalize,
   roundCm,
@@ -42,19 +42,19 @@ describe('makeWaits', () => {
   });
 });
 
-describe('fallDistanceCm', () => {
+describe('emergedCm', () => {
   it('자유낙하 공식과 맞는다', () => {
-    expect(fallDistanceCm(200)).toBeCloseTo(19.6, 1);
-    expect(fallDistanceCm(300)).toBeCloseTo(44.1, 1);
+    expect(emergedCm(200)).toBeCloseTo(19.6, 1);
+    expect(emergedCm(300)).toBeCloseTo(44.1, 1);
   });
 
   it('느릴수록 멀리 떨어진다', () => {
-    expect(fallDistanceCm(300)).toBeGreaterThan(fallDistanceCm(200));
+    expect(emergedCm(300)).toBeGreaterThan(emergedCm(200));
   });
 
   it('0 이하에도 터지지 않는다', () => {
-    expect(fallDistanceCm(0)).toBe(0);
-    expect(fallDistanceCm(-50)).toBe(0);
+    expect(emergedCm(0)).toBe(0);
+    expect(emergedCm(-50)).toBe(0);
   });
 });
 
