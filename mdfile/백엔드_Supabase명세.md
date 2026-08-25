@@ -172,7 +172,7 @@ revoke insert, update, delete on rooms, players, sessions, scores
 
 ## 5. RPC 함수
 
-공개 함수 8개 + 내부 헬퍼 3개. 이게 백엔드 작업의 전부다.
+공개 함수 9개 + 내부 헬퍼 3개. 이게 백엔드 작업의 전부다.
 
 ### 5.1 내부 헬퍼
 
@@ -485,7 +485,22 @@ begin
 end $$;
 ```
 
-### 5.9 `set_session_period(minutes)` — 방장의 주기 설정
+### 5.9 `server_now()` — 시계 보정용
+
+```sql
+create or replace function public.server_now()
+returns timestamptz
+language sql stable
+as $$ select now() $$;
+```
+
+한 줄짜리지만 **없으면 카운트다운이 어긋난다.**
+
+`start_session`이 `starts_at`을 미래 시각으로 주더라도, 폰 시계가 서버와 얼마나 어긋나 있는지 모르면 그 시각까지 얼마나 기다려야 하는지 계산할 수 없다. 폰 시계는 몇 초씩 틀어져 있는 것이 정상이다.
+
+방장이 아닌 참가자는 `start_session` 응답을 받지 못하고 Realtime으로만 세션을 알게 되므로, **각자 독립적으로 이 함수를 호출해 보정값을 구해야 한다.** 접속 시 한 번이면 충분하다.
+
+### 5.10 `set_session_period(minutes)` — 방장의 주기 설정
 
 ```sql
 create or replace function public.set_session_period(p_minutes int)
@@ -627,7 +642,7 @@ RPC가 던지는 예외를 클라이언트가 분기해야 한다.
 
 ## 11. 규모 감각
 
-테이블 4개, 공개 함수 8개, 내부 헬퍼 3개, Edge Function 0개.
+테이블 4개, 공개 함수 9개, 내부 헬퍼 3개, Edge Function 0개.
 
 **SQL에 익숙한 사람이면 2~3일, 처음이면 일주일 정도**의 분량이다. 풀타임 백엔드 담당자를 배정할 크기는 아니다. 프론트 담당 중 하나가 겸하거나, 초반에 한 명이 몰아서 끝내고 이후엔 손대지 않는 쪽이 맞다.
 
