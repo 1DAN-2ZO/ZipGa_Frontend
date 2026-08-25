@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# React Native / Expo
+.expo/
+.expo-shared/
+*.jsbundle
+ios/Pods/
+ios/build/
+android/.gradle/
+android/build/
+android/app/build/
+*.keystore
+!debug.keystore
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+.env
+.env.*
+!.env.example
+
+# build output
+dist/
+build/
+coverage/
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# logs
+*.log
+npm-debug.log*
+yarn-error.log*
