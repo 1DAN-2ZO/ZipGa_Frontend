@@ -28,6 +28,8 @@ export interface LobbyProps {
   onStartSession: () => void
   onLeaveRoom: () => void
   onSettings: () => void
+  /** QR 아이콘을 눌렀을 때. 초대 QR을 다시 띄워 새 인원을 받는다 */
+  onShowInviteQr: () => void
 }
 
 export function Lobby({
@@ -39,10 +41,16 @@ export function Lobby({
   onStartSession,
   onLeaveRoom,
   onSettings,
+  onShowInviteQr,
 }: LobbyProps) {
   return (
     <View style={styles.screen}>
-      <ScreenHeader title="ZipGa" leadingIcon="bubble-chart" onSettings={onSettings} />
+      <ScreenHeader
+        title="ZipGa"
+        leadingIcon="qr-code-2"
+        onLeadingIconPress={onShowInviteQr}
+        onSettings={onSettings}
+      />
 
       <View style={styles.timerRow}>
         {nextSessionLabel ? (

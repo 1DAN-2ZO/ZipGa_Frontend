@@ -11,10 +11,10 @@ export interface RoomSetupProps {
   onNext: (intervalMinutes: number) => void
 }
 
+/** 백엔드 set_session_period가 30/45/60만 허용한다 (mdfile/백엔드_Supabase명세.md §5.9). */
 const INTERVAL_OPTIONS = [
   { minutes: 30, label: '30분' },
-  { minutes: 40, label: '40분' },
-  { minutes: 50, label: '50분' },
+  { minutes: 45, label: '45분' },
   { minutes: 60, label: '1시간' },
 ]
 

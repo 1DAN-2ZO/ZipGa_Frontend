@@ -7,9 +7,11 @@ export interface ScreenHeaderProps {
   onBack?: () => void
   onSettings?: () => void
   leadingIcon?: keyof typeof MaterialIcons.glyphMap
+  /** 있으면 leadingIcon을 누를 수 있게 만든다 */
+  onLeadingIconPress?: () => void
 }
 
-export function ScreenHeader({ title, onBack, onSettings, leadingIcon }: ScreenHeaderProps) {
+export function ScreenHeader({ title, onBack, onSettings, leadingIcon, onLeadingIconPress }: ScreenHeaderProps) {
   return (
     <View style={styles.row}>
       {onBack ? (
@@ -17,7 +19,9 @@ export function ScreenHeader({ title, onBack, onSettings, leadingIcon }: ScreenH
           <MaterialIcons name="arrow-back" size={24} color={colors.primary} />
         </Pressable>
       ) : leadingIcon ? (
-        <MaterialIcons name={leadingIcon} size={24} color={colors.primary} />
+        <Pressable onPress={onLeadingIconPress} hitSlop={12} disabled={!onLeadingIconPress}>
+          <MaterialIcons name={leadingIcon} size={24} color={colors.primary} />
+        </Pressable>
       ) : (
         <View style={styles.iconSlot} />
       )}

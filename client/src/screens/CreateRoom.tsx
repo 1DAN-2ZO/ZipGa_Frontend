@@ -1,21 +1,24 @@
-import { MaterialIcons } from '@expo/vector-icons'
-import { useState } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import QRCode from 'react-native-qrcode-svg'
+import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { colors, fonts, radius } from '../theme/colors'
 
+function roomDeepLink(roomCode: string): string {
+  return `jipga://room/${roomCode}`
+}
+
 export interface CreateRoomProps {
+  /** null이면 로딩 중, 문자열이면 발급된 방 코드 */
+  roomCode: string | null
+  errorMessage?: string | null
   onBack: () => void
   onSettings: () => void
+  /** 있으면 "다 들어왔어요" 버튼을 보여준다. 방을 새로 만든 경우에만 넘긴다 */
+  onDone?: () => void
 }
 
-function randomRoomCode(): string {
-  return String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0')
-}
-
-export function CreateRoom({ onBack, onSettings }: CreateRoomProps) {
-  const [roomCode] = useState(randomRoomCode)
-
+export function CreateRoom({ roomCode, errorMessage, onBack, onSettings, onDone }: CreateRoomProps) {
   return (
     <View style={styles.screen}>
       <ScreenHeader title="ZipGa" onBack={onBack} onSettings={onSettings} />
@@ -23,14 +26,25 @@ export function CreateRoom({ onBack, onSettings }: CreateRoomProps) {
       <Text style={styles.heading}>QR 코드로 초대하기</Text>
       <Text style={styles.subheading}>친구들에게 화면을 보여주세요.</Text>
 
-      {/* TODO: 실제 QR 생성(jipga://room/{code}) 붙이기 전까지의 임시 자리 */}
       <View style={styles.qrBox}>
-        <MaterialIcons name="qr-code-2" size={64} color={colors.primary} style={{ opacity: 0.4 }} />
+        {roomCode ? (
+          <QRCode value={roomDeepLink(roomCode)} size={220} color={colors.textPrimary} backgroundColor="transparent" />
+        ) : (
+          <ActivityIndicator color={colors.primary} />
+        )}
       </View>
 
-      <View style={styles.codeBadge}>
-        <Text style={styles.codeText}>{roomCode}</Text>
-      </View>
+      {roomCode && (
+        <View style={styles.codeBadge}>
+          <Text style={styles.codeText}>{roomCode}</Text>
+        </View>
+      )}
+
+      {errorMessage && <Text style={styles.error}>{errorMessage}</Text>}
+
+      <View style={styles.spacer} />
+
+      {onDone && roomCode && <PillButton label="다 들어왔어요" onPress={onDone} />}
     </View>
   )
 }
@@ -41,6 +55,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingHorizontal: 24,
     paddingTop: 24,
+    paddingBottom: 32,
+  },
+  spacer: {
+    flex: 1,
   },
   heading: {
     fontFamily: fonts.bold,
@@ -82,5 +100,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     letterSpacing: 4,
     color: colors.textPrimary,
+  },
+  error: {
+    marginTop: 16,
+    textAlign: 'center',
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.primary,
   },
 })

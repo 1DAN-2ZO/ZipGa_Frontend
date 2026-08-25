@@ -10,11 +10,13 @@ export interface JoinRoomProps {
   onSettings: () => void
   /** 방 코드 6자리를 확정했을 때 (QR 스캔 성공 시에도 동일 경로) */
   onSubmitCode: (code: string) => void
+  loading?: boolean
+  errorMessage?: string | null
 }
 
 const CODE_LENGTH = 6
 
-export function JoinRoom({ onBack, onSettings, onSubmitCode }: JoinRoomProps) {
+export function JoinRoom({ onBack, onSettings, onSubmitCode, loading, errorMessage }: JoinRoomProps) {
   const [code, setCode] = useState('')
 
   return (
@@ -46,11 +48,13 @@ export function JoinRoom({ onBack, onSettings, onSubmitCode }: JoinRoomProps) {
           autoCapitalize="characters"
         />
         <PillButton
-          label="참여하기"
+          label={loading ? '참여 중…' : '참여하기'}
           onPress={() => onSubmitCode(code)}
-          disabled={code.length !== CODE_LENGTH}
+          disabled={code.length !== CODE_LENGTH || loading}
         />
       </View>
+
+      {errorMessage && <Text style={styles.error}>{errorMessage}</Text>}
     </View>
   )
 }
@@ -118,5 +122,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 16,
     color: colors.textPrimary,
+  },
+  error: {
+    marginTop: 16,
+    textAlign: 'center',
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.primary,
   },
 })
