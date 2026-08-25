@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>카카오T 딥링크 테스트</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #16181d;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --card: #f8f9fb;
+    --accent: #2563eb;
+    --ok: #15803d;
+    --ok-bg: #dcfce7;
+    --no: #b91c1c;
+    --no-bg: #fee2e2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115;
+      --fg: #e8eaed;
+      --muted: #9aa0a6;
+      --line: #2a2f38;
+      --card: #171a20;
+      --accent: #60a5fa;
+      --ok: #86efac;
+      --ok-bg: #14321f;
+      --no: #fca5a5;
+      --no-bg: #3a1717;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px 16px 64px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.6 -apple-system, "Noto Sans KR", "Malgun Gothic", sans-serif;
+    max-width: 640px;
+    margin-inline: auto;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+  h2 {
+    font-size: 15px; text-transform: none; letter-spacing: 0;
+    margin: 32px 0 12px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .note {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px 16px; font-size: 14px;
+    color: var(--muted); margin: 0 0 20px;
+  }
+  .note b { color: var(--fg); }
+  .test {
+    border: 1px solid var(--line); border-radius: 12px;
+    margin-bottom: 14px; overflow: hidden; background: var(--card);
+  }
+  .test[data-r="ok"] { border-color: var(--ok); background: var(--ok-bg); }
+  .test[data-r="no"] { border-color: var(--no); background: var(--no-bg); }
+  .test a {
+    display: block; padding: 18px 16px 14px;
+    color: var(--accent); text-decoration: none; font-weight: 600;
+  }
+  .test a:active { opacity: .6; }
+  .label { font-size: 17px; }
+  .url {
+    display: block; margin-top: 6px; font-size: 12px;
+    color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace;
+    word-break: break-all; font-weight: 400;
+  }
+  .why { padding: 0 16px 12px; font-size: 13px; color: var(--muted); }
+  .marks { display: flex; gap: 8px; padding: 0 12px 12px; }
+  .marks button {
+    flex: 1; padding: 10px; font-size: 14px; font-family: inherit;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--fg); cursor: pointer;
+  }
+  .marks button:active { opacity: .6; }
+  .custom { display: flex; gap: 8px; margin-bottom: 14px; }
+  .custom input {
+    flex: 1; padding: 14px; font-size: 16px; font-family: inherit;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--fg);
+  }
+  .custom button {
+    padding: 14px 18px; font-size: 16px; font-family: inherit; font-weight: 600;
+    border: 0; border-radius: 10px; background: var(--accent); color: #fff;
+    cursor: pointer; white-space: nowrap;
+  }
+  #out {
+    width: 100%; min-height: 200px; margin-top: 12px; padding: 12px;
+    font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--card); color: var(--fg); resize: vertical;
+  }
+  .wide {
+    width: 100%; padding: 14px; font-size: 15px; font-family: inherit; font-weight: 600;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--fg); cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<h1>카카오T 딥링크 테스트</h1>
+<p class="sub">집 가 · 안드로이드 전용 · 갤럭시에서 Chrome으로 열 것</p>
+
+<div class="note">
+  <b>삼성 인터넷 말고 Chrome으로 여세요.</b> <code>intent://</code> 처리가 브라우저마다 다릅니다.<br><br>
+  각 항목을 탭한 뒤 <b>뒤로가기로 돌아와</b> 결과를 눌러 기록하세요. 기록은 폰에 저장되니 앱을 지웠다 깔아도 남습니다.
+</div>
+
+<h2>1단계 · 카카오T가 설치된 상태로</h2>
+
+<div class="test" id="t1">
+  <a href="intent://#Intent;package=com.kakao.taxi;end">
+    <span class="label">① 패키지로 직접 열기</span>
+    <span class="url">intent://#Intent;package=com.kakao.taxi;end</span>
+  </a>
+  <div class="why">스킴을 몰라도 됩니다. <b>이게 열리면 안드로이드는 사실상 해결입니다.</b></div>
+  <div class="marks" data-for="t1"></div>
+</div>
+
+<div class="test" id="t2">
+  <a href="intent://#Intent;package=com.kakao.taxi;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kakao.taxi;end">
+    <span class="label">② 패키지 + 스토어 자동 폴백</span>
+    <span class="url">intent://#Intent;package=com.kakao.taxi;S.browser_fallback_url=…;end</span>
+  </a>
+  <div class="why">설치돼 있으면 앱, 없으면 플레이스토어로. 한 URL로 둘 다 처리합니다.</div>
+  <div class="marks" data-for="t2"></div>
+</div>
+
+<div class="test" id="t3">
+  <a href="kakaot://">
+    <span class="label">③ kakaot://</span>
+    <span class="url">kakaot://</span>
+  </a>
+  <div class="why">가장 흔히 언급되는 후보. 확인된 값은 아닙니다.</div>
+  <div class="marks" data-for="t3"></div>
+</div>
+
+<div class="test" id="t4">
+  <a href="kakaotaxi://">
+    <span class="label">④ kakaotaxi://</span>
+    <span class="url">kakaotaxi://</span>
+  </a>
+  <div class="why">구버전 카카오택시 시절 후보.</div>
+  <div class="marks" data-for="t4"></div>
+</div>
+
+<div class="test" id="t5">
+  <a href="daumtaxi://">
+    <span class="label">⑤ daumtaxi://</span>
+    <span class="url">daumtaxi://</span>
+  </a>
+  <div class="why">다음 합병 이전 흔적이 남아 있을 가능성.</div>
+  <div class="marks" data-for="t5"></div>
+</div>
+
+<div class="test" id="t6">
+  <a href="https://play.google.com/store/apps/details?id=com.kakao.taxi">
+    <span class="label">⑥ 플레이스토어 링크 (대조용)</span>
+    <span class="url">https://play.google.com/store/apps/details?id=com.kakao.taxi</span>
+  </a>
+  <div class="why">폴백 목적지가 제대로 열리는지 확인. 이건 당연히 돼야 합니다.</div>
+  <div class="marks" data-for="t6"></div>
+</div>
+
+<h2>직접 입력 · adb로 찾은 스킴 테스트</h2>
+
+<div class="note">
+  PC에서 <code>adb shell dumpsys package com.kakao.taxi</code>를 돌리면 앱이 선언한 진짜 스킴이 나옵니다.
+  그 값을 여기 넣고 열어보세요.
+</div>
+
+<div class="custom">
+  <input id="scheme" type="text" inputmode="url" autocapitalize="off" autocorrect="off"
+         placeholder="예: kakaot://launch">
+  <button onclick="openCustom()">열기</button>
+</div>
+
+<h2>2단계 · 카카오T를 삭제한 뒤</h2>
+
+<div class="note">
+  <b>카카오T를 지우고 위 ①~⑤를 그대로 다시 누르세요.</b> 삼성 기본 앱이 아니라 그냥 지워집니다.<br><br>
+  ②가 <b>플레이스토어로 넘어가면 성공</b>입니다. 나머지는 "앱을 열 수 없음" 류의 에러가 나야 정상이고,
+  그 에러가 앱 코드에서 <code>catch</code>로 잡힙니다.<br><br>
+  이 단계를 빠뜨리면 출시 후에 <b>"벌칙 받았는데 아무 일도 안 일어남"</b>이 나옵니다.
+</div>
+
+<div class="test" id="u2">
+  <a href="intent://#Intent;package=com.kakao.taxi;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kakao.taxi;end">
+    <span class="label">미설치 상태에서 ② 다시 열기</span>
+    <span class="url">스토어로 넘어가면 성공</span>
+  </a>
+  <div class="marks" data-for="u2"></div>
+</div>
+
+<h2>결과</h2>
+
+<button class="wide" onclick="report()">결과 정리해서 보기</button>
+<textarea id="out" readonly placeholder="위 버튼을 누르면 여기에 정리됩니다. 길게 눌러 복사하세요."></textarea>
+<button class="wide" style="margin-top:8px" onclick="reset()">기록 전부 지우기</button>
+
+<script>
+  var LABELS = {
+    t1: '① 패키지 직접',
+    t2: '② 패키지 + 스토어 폴백',
+    t3: '③ kakaot://',
+    t4: '④ kakaotaxi://',
+    t5: '⑤ daumtaxi://',
+    t6: '⑥ 플레이스토어 링크',
+    u2: '미설치 상태에서 ②'
+  };
+  var KEY = 'gipga-deeplink-v1';
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function save(state) {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function mark(id, value) {
+    var state = load();
+    if (state[id] === value) { delete state[id]; } else { state[id] = value; }
+    save(state);
+    paint();
+  }
+
+  function paint() {
+    var state = load();
+    Object.keys(LABELS).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (state[id]) { el.setAttribute('data-r', state[id]); }
+      else { el.removeAttribute('data-r'); }
+    });
+  }
+
+  document.querySelectorAll('.marks').forEach(function (box) {
+    var id = box.getAttribute('data-for');
+    [['ok', '열림'], ['no', '안 열림']].forEach(function (pair) {
+      var b = document.createElement('button');
+      b.textContent = pair[1];
+      b.onclick = function () { mark(id, pair[0]); };
+      box.appendChild(b);
+    });
+  });
+
+  function openCustom() {
+    var v = document.getElementById('scheme').value.trim();
+    if (!v) return;
+    try { localStorage.setItem(KEY + '-custom', v); } catch (e) {}
+    window.location.href = v;
+  }
+
+  function report() {
+    var state = load();
+    var lines = ['카카오T 딥링크 테스트 결과', '기기: 갤럭시 / Chrome', ''];
+    Object.keys(LABELS).forEach(function (id) {
+      var r = state[id];
+      lines.push('- ' + LABELS[id] + ': ' + (r === 'ok' ? '열림' : r === 'no' ? '안 열림' : '미확인'));
+    });
+    var custom = '';
+    try { custom = localStorage.getItem(KEY + '-custom') || ''; } catch (e) {}
+    if (custom) { lines.push('', '직접 입력한 스킴: ' + custom); }
+    lines.push('', 'adb dumpsys에서 찾은 스킴: (여기에 적어주세요)');
+    document.getElementById('out').value = lines.join('\n');
+  }
+
+  function reset() {
+    try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + '-custom'); } catch (e) {}
+    document.getElementById('out').value = '';
+    document.getElementById('scheme').value = '';
+    paint();
+  }
+
+  (function init() {
+    var custom = '';
+    try { custom = localStorage.getItem(KEY + '-custom') || ''; } catch (e) {}
+    if (custom) { document.getElementById('scheme').value = custom; }
+    paint();
+  })();
+</script>
+
+</body>
+</html>
