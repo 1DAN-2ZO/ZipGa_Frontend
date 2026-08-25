@@ -5,17 +5,19 @@ import {
   useFonts,
 } from '@expo-google-fonts/quicksand'
 import { useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { CreateRoom } from './src/screens/CreateRoom'
 import { Home } from './src/screens/Home'
 import { JoinRoom } from './src/screens/JoinRoom'
 import { Lobby } from './src/screens/Lobby'
 import { RoomSetup } from './src/screens/RoomSetup'
+import { GoingHome } from './src/screens/GoingHome'
 import { Settings } from './src/screens/Settings'
 import { SessionResult } from './src/screens/SessionResult'
+import { KAKAO_T_STORE, openKakaoTaxi, type TaxiLaunchResult } from './src/lib/kakaoTaxi'
 import { colors } from './src/theme/colors'
 
-const SCREENS = ['Home', 'RoomSetup', 'CreateRoom', 'JoinRoom', 'Lobby', 'SessionResult', 'Settings'] as const
+const SCREENS = ['Home', 'RoomSetup', 'CreateRoom', 'JoinRoom', 'Lobby', 'SessionResult', 'GoingHome', 'Settings'] as const
 type ScreenName = (typeof SCREENS)[number]
 
 const MOCK_LOBBY_PLAYERS = [
@@ -39,6 +41,14 @@ export default function App() {
   const [screen, setScreen] = useState<ScreenName>('Home')
   const [soundEffectsEnabled, setSoundEffectsEnabled] = useState(true)
   const [backgroundMusicEnabled, setBackgroundMusicEnabled] = useState(true)
+  const [launch, setLaunch] = useState<TaxiLaunchResult | null>(null)
+
+  /** 벌칙 카운트다운이 끝나면 카카오T를 띄우고 귀가 화면으로 넘어간다. */
+  const callTaxi = async () => {
+    setLaunch(null)
+    setScreen('GoingHome')
+    setLaunch(await openKakaoTaxi())
+  }
 
   if (!fontsLoaded) return null
 
@@ -89,8 +99,20 @@ export default function App() {
           threshold={40}
           myPlayerId="4"
           onSettings={() => setScreen('Settings')}
-          onCallTaxi={() => {}}
+          onCallTaxi={callTaxi}
           onBackToLobby={() => setScreen('Lobby')}
+        />
+      )}
+      {screen === 'GoingHome' && (
+        <GoingHome
+          reason="penalty"
+          launch={launch}
+          onSettings={() => setScreen('Settings')}
+          onOpenStore={() => {
+            // 스킴은 이미 실패했다. 다시 시도하지 않고 스토어로 바로 보낸다.
+            Linking.openURL(KAKAO_T_STORE).catch(() => {})
+          }}
+          onStay={() => setScreen('Lobby')}
         />
       )}
       {screen === 'Settings' && (
