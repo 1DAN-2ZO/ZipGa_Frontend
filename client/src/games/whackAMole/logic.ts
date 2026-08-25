@@ -4,17 +4,17 @@ import { createRng } from '../prng'
 export const HOLE_COUNT = 9
 
 /** 잡아야 하는 두더지 수. 정규화의 분모가 된다. */
-export const MOLE_COUNT = 12
+export const MOLE_COUNT = 15
 
 /** 치면 안 되는 폭탄 수. */
-export const BOMB_COUNT = 3
+export const BOMB_COUNT = 5
 
 /**
  * 한 판에 등장하는 총 개수.
  *
- * 제한시간(초)과 같은 값으로 두면 등장 간격이 1초가 된다.
- * 폭탄을 두더지에 그냥 더하면 간격이 좁아져 난이도가 확 오르므로,
- * 총량을 고정하고 그중 일부를 폭탄으로 바꾼다.
+ * 등장 간격은 제한시간 / 이 값이다. 20초에 20개면 1000ms.
+ * 제한시간을 늘릴 때 이 값을 같이 늘려야 간격이 유지된다.
+ * 그러지 않으면 등장이 뜸해져 게임이 늘어진다.
  */
 export const SPAWN_COUNT = MOLE_COUNT + BOMB_COUNT
 

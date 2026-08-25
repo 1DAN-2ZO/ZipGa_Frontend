@@ -8,15 +8,20 @@ import {
   SPAWN_COUNT,
 } from '../whackAMole/logic'
 
-const DURATION = 15_000
+const DURATION = 20_000
 
 describe('상수', () => {
   it('등장물은 두더지와 폭탄의 합이다', () => {
     expect(SPAWN_COUNT).toBe(MOLE_COUNT + BOMB_COUNT)
   })
 
-  it('폭탄은 3개다', () => {
-    expect(BOMB_COUNT).toBe(3)
+  it('폭탄은 5개다', () => {
+    expect(BOMB_COUNT).toBe(5)
+  })
+
+  it('등장 간격이 1초가 되도록 총량이 제한시간과 맞는다', () => {
+    // 간격이 벌어지면 게임이 늘어지고, 좁아지면 몰아친다.
+    expect(DURATION / SPAWN_COUNT).toBe(1000)
   })
 })
 
