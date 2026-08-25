@@ -1,7 +1,11 @@
 import { createRng } from './prng'
 import type { GameModule } from './types'
 import { bulletHell } from './bulletHell'
+import { cardmatch } from './cardmatch'
+import { gugudan } from './gugudan'
 import { leftRight } from './leftRight'
+import { plusminus } from './plusminus'
+import { rulercatch } from './rulercatch'
 import { sentenceCopy } from './sentenceCopy'
 import { spotDiff } from './spotDiff'
 import { tapRush } from './tapRush'
@@ -12,8 +16,23 @@ import { whackAMole } from './whackAMole'
  *
  * 새 게임을 추가하려면 import 한 줄과 아래 배열에 한 줄만 넣으면 된다.
  * 이 파일이 게임 담당자들의 유일한 공유 지점이다.
+ *
+ * ⚠️ cardmatch·plusminus·rulercatch·gugudan은 아직 공통 배경색(theme.ts COLORS.bg)을
+ * 안 쓰고 자체 색을 쓴다 — games/__tests__/theme.test.tsx가 이 4개에서 깨진다.
+ * 색상 통일은 추후 작업으로 미뤄뒀다(의도적으로 지금 안 고침).
  */
-export const GAMES: readonly GameModule[] = [sentenceCopy, bulletHell, spotDiff, leftRight, whackAMole, tapRush]
+export const GAMES: readonly GameModule[] = [
+  sentenceCopy,
+  bulletHell,
+  spotDiff,
+  leftRight,
+  whackAMole,
+  tapRush,
+  cardmatch,
+  plusminus,
+  rulercatch,
+  gugudan,
+]
 
 export function getGame(id: string): GameModule {
   const found = GAMES.find((g) => g.info.id === id)

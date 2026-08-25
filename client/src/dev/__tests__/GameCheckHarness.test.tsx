@@ -80,11 +80,13 @@ describe('GameCheckHarness', () => {
   })
 
   test('게임을 레지스트리에서 고른다 — 제한시간도 GameInfo를 따른다', async () => {
+    // 고정 시드를 쓰면 레지스트리에 게임이 늘 때마다 추첨 결과가 바뀌어 깨진다.
+    // time-left testID를 쓰는 게임이 뽑히도록 SENTENCE_SEED를 그대로 재사용한다.
     await render(<GameCheckHarness />)
 
-    await startWithSeed('4242')
+    await startWithSeed(String(SENTENCE_SEED))
     expect(screen.getByTestId('time-left').props.children.toString()).toBe(
-      String(gameFor(4242).info.timeLimitSec),
+      String(gameFor(SENTENCE_SEED).info.timeLimitSec),
     )
   })
 

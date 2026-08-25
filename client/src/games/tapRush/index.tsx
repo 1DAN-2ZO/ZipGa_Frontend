@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import type { GameModule, GameProps } from '../types'
+import { COLORS } from '../../theme'
 import { isComplete, normalize, TARGET_TAPS } from './logic'
 
 /** 남은 시간 표시 갱신 주기. 타수는 탭할 때마다 따로 갱신된다. */
@@ -66,24 +67,27 @@ function TapRushGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const progress = Math.min(1, taps / TARGET_TAPS)
 
   return (
-    <Pressable testID="tap-area" style={styles.area} onPress={tap}>
-      <Text style={styles.remain} testID="remain">{`${remainSec}초`}</Text>
+    <View testID="game-root" style={styles.root}>
+      <Pressable testID="tap-area" style={styles.area} onPress={tap}>
+        <Text style={styles.remain} testID="remain">{`${remainSec}초`}</Text>
 
-      <Text style={styles.count} testID="taps">
-        {taps}
-      </Text>
-      <Text style={styles.target}>{`/ ${TARGET_TAPS}`}</Text>
+        <Text style={styles.count} testID="taps">
+          {taps}
+        </Text>
+        <Text style={styles.target}>{`/ ${TARGET_TAPS}`}</Text>
 
-      <View style={styles.track}>
-        <View style={[styles.fill, { width: `${progress * 100}%` }]} />
-      </View>
+        <View style={styles.track}>
+          <View style={[styles.fill, { width: `${progress * 100}%` }]} />
+        </View>
 
-      <Text style={styles.hint}>아무 데나 두드리세요</Text>
-    </Pressable>
+        <Text style={styles.hint}>아무 데나 두드리세요</Text>
+      </Pressable>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: COLORS.bg },
   area: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 24 },
   remain: { fontSize: 20, fontWeight: '700', color: '#1A1C1C', marginBottom: 20 },
   count: { fontSize: 96, fontWeight: '800', color: '#A161F7' },

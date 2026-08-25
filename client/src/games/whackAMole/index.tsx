@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import type { GameModule, GameProps } from '../types'
+import { COLORS } from '../../theme'
 import { buildSpawns, HOLE_COUNT, MOLE_COUNT, netScore, normalize } from './logic'
 
 /** 화면 갱신 주기. 스케줄이 절대 시각 기반이라 이 값이 정확도를 좌우하지 않는다. */
@@ -92,7 +93,7 @@ function WhackAMoleGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const blasting = blastAtMs !== null && elapsedMs - blastAtMs < BLAST_MS
 
   return (
-    <View style={[styles.container, blasting && styles.containerBlast]}>
+    <View testID="game-root" style={[styles.container, blasting && styles.containerBlast]}>
       <View style={styles.hud}>
         <Text style={styles.hudText} testID="score">
           {`${netScore(moleHits, bombHits)} / ${MOLE_COUNT}`}
@@ -131,7 +132,14 @@ function WhackAMoleGame({ seed, timeLimitSec, onFinish }: GameProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18, padding: 20 },
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 18,
+    padding: 20,
+    backgroundColor: COLORS.bg,
+  },
   containerBlast: { backgroundColor: '#FFE3E7' },
   hud: { flexDirection: 'row', alignItems: 'center', gap: 20 },
   hudText: { fontSize: 20, fontWeight: '700', color: '#1A1C1C' },

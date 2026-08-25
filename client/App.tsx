@@ -19,20 +19,29 @@ import {
 import { checkRoom, createRoom, ensureAnonymousSession, joinRoom, leaveRoom, rejoinRoom, RoomError } from './src/room/api'
 import { listPlayers, subscribeToPlayers } from './src/room/players'
 import { CreateRoom } from './src/screens/CreateRoom'
+import { GameSandbox } from './src/screens/GameSandbox'
 import { GoingHome } from './src/screens/GoingHome'
 import { Home } from './src/screens/Home'
 import { JoinRoom } from './src/screens/JoinRoom'
 import { Lobby, type LobbyPlayer } from './src/screens/Lobby'
 import { RoomSetup } from './src/screens/RoomSetup'
-import { GameSandbox } from './src/screens/GameSandbox'
-import { GoingHome } from './src/screens/GoingHome'
-import { Settings } from './src/screens/Settings'
 import { SessionResult } from './src/screens/SessionResult'
 import { Settings } from './src/screens/Settings'
 import { colors } from './src/theme/colors'
 import GameCheckHarness from './src/dev/GameCheckHarness'
 
-const SCREENS = ['Home', 'RoomSetup', 'CreateRoom', 'JoinRoom', 'Lobby', 'SessionResult', 'GoingHome', 'Game', 'Settings'] as const
+const SCREENS = [
+  'Home',
+  'RoomSetup',
+  'CreateRoom',
+  'JoinRoom',
+  'Lobby',
+  'SessionResult',
+  'GoingHome',
+  'Game',
+  'Settings',
+  'GameCheck',
+] as const
 type ScreenName = (typeof SCREENS)[number]
 
 const MOCK_RESULT_PLAYERS = [
