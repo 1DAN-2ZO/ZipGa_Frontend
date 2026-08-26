@@ -138,6 +138,9 @@ export default function App() {
   const [goingHomeReason, setGoingHomeReason] = useState<'penalty' | 'voluntary'>('penalty')
   /** CreateRoom의 뒤로가기가 어디로 돌아갈지. Home에서 새로 만들 때와 Lobby에서 재초대할 때가 다르다 */
   const [createRoomOrigin, setCreateRoomOrigin] = useState<'Home' | 'Lobby'>('Home')
+  /** 설정에서 뒤로가기가 어디로 돌아갈지. 예전엔 무조건 Home으로 갔는데, 게임 도중
+   * 설정을 눌렀다가 나오면 메인으로 튕겨나가는 버그였다 — 들어온 화면을 기억해뒀다 그대로 돌려준다. */
+  const [settingsOrigin, setSettingsOrigin] = useState<ScreenName>('Home')
 
   // --- 백엔드 연동 상태 ---
   const [nickname, setNickname] = useState<string | null>(null)
@@ -411,6 +414,12 @@ export default function App() {
    * action에는 확정된 닉네임을 인자로 넘긴다 — setNickname은 비동기라 action을 부르는
    * 시점에 컴포넌트의 nickname state가 아직 갱신되지 않았을 수 있기 때문이다.
    */
+  /** 설정 화면을 열면서 지금 화면을 기억해둔다 — 뒤로가기가 그리로 돌아간다. */
+  function openSettings() {
+    setSettingsOrigin(screen)
+    setScreen('Settings')
+  }
+
   function requireNickname(action: (nickname: string) => void) {
     if (nickname) {
       action(nickname)
@@ -618,13 +627,13 @@ export default function App() {
           }
           onJoinRoom={() => setScreen('JoinRoom')}
           onRejoin={handleRejoin}
-          onSettings={() => setScreen('Settings')}
+          onSettings={openSettings}
         />
       )}
       {screen === 'RoomSetup' && (
         <RoomSetup
           onBack={() => setScreen('Home')}
-          onSettings={() => setScreen('Settings')}
+          onSettings={openSettings}
           onNext={(intervalMinutes) => {
             handleRoomSetupNext(intervalMinutes)
           }}
@@ -636,14 +645,14 @@ export default function App() {
           onlineCount={onlinePlayerIds.size}
           errorMessage={createRoomError}
           onBack={() => setScreen(createRoomOrigin)}
-          onSettings={() => setScreen('Settings')}
+          onSettings={openSettings}
           onDone={createRoomOrigin === 'Home' ? () => setScreen('Lobby') : undefined}
         />
       )}
       {screen === 'JoinRoom' && (
         <JoinRoom
           onBack={() => setScreen('Home')}
-          onSettings={() => setScreen('Settings')}
+          onSettings={openSettings}
           onSubmitCode={handleCheckAndJoin}
           loading={joinLoading}
           errorMessage={joinError}
@@ -659,14 +668,14 @@ export default function App() {
           canStart={lobbyPlayers.length >= 2}
           onStartSession={() => session.start()}
           onLeaveRoom={handleLeaveRoom}
-          onSettings={() => setScreen('Settings')}
+          onSettings={openSettings}
           onShowInviteQr={() => {
             setCreateRoomOrigin('Lobby')
             setScreen('CreateRoom')
           }}
         />
       )}
-      {screen === 'NextSessionWait' && <NextSessionWait onSettings={() => setScreen('Settings')} />}
+      {screen === 'NextSessionWait' && <NextSessionWait onSettings={openSettings} />}
       {session.state && screen === 'GameReveal' && (
         <GameReveal plan={session.state.plan} onDone={handleGameRevealDone} />
       )}
@@ -693,7 +702,6 @@ export default function App() {
         <RoundResult
           sessionId={session.sessionId}
           roundIndex={session.state.roundIndex}
-          players={lobbyPlayers}
           myPlayerId={myPlayerId ?? ''}
           gameName={getGame(currentRound(session.state).gameId).info.name}
           onDone={handleRoundResultDone}
@@ -709,7 +717,7 @@ export default function App() {
           }
           threshold={40}
           myPlayerId={myPlayerId ?? ''}
-          onSettings={() => setScreen('Settings')}
+          onSettings={openSettings}
           onCallTaxi={callTaxi}
           onBackToLobby={() => setScreen('Lobby')}
         />
@@ -718,7 +726,7 @@ export default function App() {
         <GoingHome
           reason={goingHomeReason}
           launch={launch}
-          onSettings={() => setScreen('Settings')}
+          onSettings={openSettings}
           onOpenStore={() => {
             // 스킴은 이미 실패했다. 다시 시도하지 않고 스토어로 바로 보낸다.
             // iOS에 플레이스토어 링크를 주면 열리기만 하고 설치가 안 된다.
@@ -729,14 +737,14 @@ export default function App() {
           onStay={handleRejoin}
         />
       )}
-      {screen === 'Game' && <GameSandbox onSettings={() => setScreen('Settings')} />}
+      {screen === 'Game' && <GameSandbox onSettings={openSettings} />}
       {screen === 'Settings' && (
         <Settings
           soundEffectsEnabled={soundEffectsEnabled}
           backgroundMusicEnabled={backgroundMusicEnabled}
           onToggleSoundEffects={setSoundEffectsEnabled}
           onToggleBackgroundMusic={setBackgroundMusicEnabled}
-          onBack={() => setScreen('Home')}
+          onBack={() => setScreen(settingsOrigin)}
           onOpenSandbox={() => setScreen('Game')}
         />
       )}
