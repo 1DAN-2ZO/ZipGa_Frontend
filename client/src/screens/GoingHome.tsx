@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { colors, fonts } from '../theme/colors'
@@ -27,7 +27,9 @@ export interface GoingHomeProps {
  * 실기기로만 확인된다. catch를 유일한 방어선으로 두지 않는다 (설계 §6.0.1).
  */
 export function GoingHome({ reason, launch, onSettings, onOpenStore, onStay }: GoingHomeProps) {
-  const opened = launch === 'opened'
+  // 웹의 성공 판정은 추론이라 틀릴 수 있다 (설계_웹배포와알림 §B.3).
+  // 판정을 믿을 수 없으므로 웹에서는 탈출구를 항상 노출한다.
+  const hideEscape = launch === 'opened' && Platform.OS !== 'web'
 
   return (
     <View style={styles.screen}>
@@ -42,7 +44,7 @@ export function GoingHome({ reason, launch, onSettings, onOpenStore, onStay }: G
             : '먼저 일어나셨습니다.'}
         </Text>
 
-        {!opened && (
+        {!hideEscape && (
           <Pressable style={styles.escape} onPress={onOpenStore} hitSlop={8}>
             <MaterialIcons name="open-in-new" size={16} color={colors.primary} />
             <Text style={styles.escapeText}>안 열렸나요? 카카오T 설치하기</Text>
