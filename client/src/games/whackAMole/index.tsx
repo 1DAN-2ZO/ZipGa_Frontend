@@ -149,8 +149,8 @@ const styles = StyleSheet.create({
   },
   containerBlast: { backgroundColor: '#FFE3E7' },
   hud: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-  hudText: { fontSize: 20, fontWeight: '700', color: '#1A1C1C' },
-  penalty: { fontSize: 16, fontWeight: '700', color: '#D9345B' },
+  hudText: { fontSize: 20, fontWeight: '700', color: COLORS.text },
+  penalty: { fontSize: 16, fontWeight: '700', color: COLORS.bad },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   face: { fontSize: 52 },
-  hint: { fontSize: 13, color: '#77767E' },
+  hint: { fontSize: 13, color: COLORS.textMuted },
 })
 
 export const whackAMole: GameModule = {

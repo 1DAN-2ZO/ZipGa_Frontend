@@ -95,20 +95,20 @@ function TapRushGame({ seed, timeLimitSec, onFinish }: GameProps) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   area: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 24 },
-  remain: { fontSize: 20, fontWeight: '700', color: '#1A1C1C', marginBottom: 20 },
-  count: { fontSize: 96, fontWeight: '800', color: '#A161F7' },
-  target: { fontSize: 16, fontWeight: '600', color: '#77767E' },
+  remain: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 20 },
+  count: { fontSize: 96, fontWeight: '800', color: COLORS.brand },
+  target: { fontSize: 16, fontWeight: '600', color: COLORS.textMuted },
   track: {
     width: '100%',
     maxWidth: 280,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: COLORS.surfaceAlt,
     marginTop: 24,
     overflow: 'hidden',
   },
-  fill: { height: '100%', backgroundColor: '#A161F7' },
-  hint: { fontSize: 13, color: '#77767E', marginTop: 24 },
+  fill: { height: '100%', backgroundColor: COLORS.brand },
+  hint: { fontSize: 13, color: COLORS.textMuted, marginTop: 24 },
 })
 
 export const tapRush: GameModule = {

@@ -37,9 +37,9 @@ const C = {
   sky: '#18A0FF',
   ink: '#0B3FA8',
   card: '#DCEEFF', cardDim: '#96CFFA',
-  white: '#FFFFFF',
-  good: '#22C55E', goodBg: '#D7F8E3',
-  bad: '#FF5B4A', badBg: '#FFE2DE',
+  white: COLORS.surface,
+  good: COLORS.good, goodBg: '#D7F8E3',
+  bad: COLORS.bad, badBg: '#FFE2DE',
 };
 
 /** RN 에는 텍스트 외곽선이 없어서 같은 글자를 여러 번 겹쳐 찍는다. */

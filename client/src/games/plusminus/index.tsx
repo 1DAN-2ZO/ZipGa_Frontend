@@ -40,8 +40,8 @@ const C = {
   grape: '#7C5CFF',
   ink: '#2B1780',
   card: '#EFE9FF', cardDim: '#C6B4FF',
-  white: '#FFFFFF',
-  bad: '#FF5B4A', badBg: '#FFE2DE',
+  white: COLORS.surface,
+  bad: COLORS.bad, badBg: '#FFE2DE',
 };
 
 /** RN 에는 텍스트 외곽선이 없어서 같은 글자를 여러 번 겹쳐 찍는다. */

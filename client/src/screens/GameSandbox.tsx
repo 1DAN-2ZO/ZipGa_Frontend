@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
   big: { fontFamily: fonts.heading, fontSize: 84, color: colors.primary },
   meta: { fontFamily: fonts.regular, fontSize: 13, color: colors.textMuted },
   verdict: { fontFamily: fonts.heading, fontSize: 26, color: colors.primary, marginTop: 12 },
-  verdictPenalty: { color: '#D9345B' },
+  verdictPenalty: { color: colors.danger },
   input: {
     backgroundColor: colors.white,
     borderRadius: radius.pill,

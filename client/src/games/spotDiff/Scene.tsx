@@ -1,4 +1,5 @@
 import React, { useId } from 'react'
+import { COLORS } from '../../theme'
 import Svg, {
   Circle,
   Defs,
@@ -124,7 +125,7 @@ export function Scene({
           return (
             <React.Fragment key={p.id}>
               <Circle cx={cx} cy={cy} r={r} stroke="#000000" strokeWidth={9} fill="none" opacity={0.35} />
-              <Circle cx={cx} cy={cy} r={r} stroke="#22c55e" strokeWidth={5} fill="none" />
+              <Circle cx={cx} cy={cy} r={r} stroke={COLORS.good} strokeWidth={5} fill="none" />
             </React.Fragment>
           )
         })}

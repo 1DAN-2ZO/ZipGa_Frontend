@@ -44,8 +44,8 @@ const C = {
   ink: '#0B3FA8',
   slot: '#96CFFA', slotOn: '#DCEEFF',
   wood: '#FCF3B4', woodEdge: '#F3E58A', tick: '#2FA4FF',
-  white: '#FFFFFF',
-  bad: '#FF5B4A',
+  white: COLORS.surface,
+  bad: COLORS.bad,
 };
 
 const BAR_H = 11;
@@ -246,7 +246,11 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
      안전망까지 그 안에 두면 측정이 늦거나 실패했을 때 게임이 영영 안 끝난다.
      호스트가 onFinish 만 기다리므로 그 경우 세션 전체가 멈춘다. */
   useEffect(() => {
-    const guard = setTimeout(() => finish(false), limitMs);
+    // true인 이유: 제한시간을 다 쓴 것은 정상 종료다. false는 중도 이탈
+    // (앱 종료·화면 이탈)만 뜻한다 (games/types.ts GameResult 주석).
+    // 여기서 false를 주면 5판을 다 못 채운 사람이 전부 이탈로 기록됐다.
+    // 그때까지 잡은 점수는 record가 이미 쌓아뒀으므로 그대로 나간다.
+    const guard = setTimeout(() => finish(true), limitMs);
     return () => clearTimeout(guard);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed, limitMs]);

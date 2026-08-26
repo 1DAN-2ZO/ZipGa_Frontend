@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   onlineDotOn: {
-    backgroundColor: '#3ED598',
+    backgroundColor: colors.online,
   },
   onlineDotOff: {
     backgroundColor: colors.divider,
