@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { colors, fonts, radius } from '../theme/colors'
 
@@ -12,7 +12,18 @@ export interface ResultPlayer {
 }
 
 export interface SessionResultProps {
-  players: ResultPlayer[]
+  /**
+   * 내 3판 평균. end_session은 "먼저 도착한 한 번만" 실행되므로 서버 응답을
+   * 못 받는 사람이 생긴다 — 그래서 이 값은 서버 응답과 무관하게 내 폰이 직접
+   * 낸 점수로 항상 확정돼 있어야 한다 (session/machine.ts의 sessionAverage).
+   * 생존/탈락 판정과 자동 진행 타이머는 전적으로 이 값만 본다.
+   */
+  myAverage: number
+  /**
+   * 전체 순위표 — 표시 전용이다. null이면 아직 못 받은 것뿐이고, 내 생존/탈락
+   * 판정에는 전혀 영향을 주지 않는다(위 myAverage가 이미 확정이므로).
+   */
+  players: ResultPlayer[] | null
   /** 앱 전역 상수. games/types.ts의 PENALTY_THRESHOLD와 항상 같아야 한다. */
   threshold: number
   myPlayerId: string
@@ -24,6 +35,7 @@ export interface SessionResultProps {
 }
 
 export function SessionResult({
+  myAverage,
   players,
   threshold,
   myPlayerId,
@@ -31,9 +43,8 @@ export function SessionResult({
   onCallTaxi,
   onBackToLobby,
 }: SessionResultProps) {
-  const sorted = [...players].sort((a, b) => b.avgScore - a.avgScore)
-  const myScore = sorted.find((p) => p.id === myPlayerId)?.avgScore ?? threshold
-  const iAmPenalized = myScore < threshold
+  const sorted = players ? [...players].sort((a, b) => b.avgScore - a.avgScore) : null
+  const iAmPenalized = myAverage < threshold
 
   const advanceRef = useRef(false)
   useEffect(() => {
@@ -51,21 +62,28 @@ export function SessionResult({
     <View style={styles.screen}>
       <ScreenHeader title="최종 결과" onSettings={onSettings} />
 
-      <View style={styles.list}>
-        {sorted.map((player, index) => (
-          <View key={player.id}>
-            {index > 0 && sorted[index - 1].avgScore >= threshold && player.avgScore < threshold && (
-              <ThresholdDivider threshold={threshold} />
-            )}
-            <ResultRow
-              player={player}
-              rank={index + 1}
-              penalized={player.avgScore < threshold}
-              isWinner={index === 0}
-            />
-          </View>
-        ))}
-      </View>
+      {sorted === null ? (
+        <View style={styles.loadingList}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={styles.loadingText}>다른 참가자 순위를 기다리는 중…</Text>
+        </View>
+      ) : (
+        <View style={styles.list}>
+          {sorted.map((player, index) => (
+            <View key={player.id}>
+              {index > 0 && sorted[index - 1].avgScore >= threshold && player.avgScore < threshold && (
+                <ThresholdDivider threshold={threshold} />
+              )}
+              <ResultRow
+                player={player}
+                rank={index + 1}
+                penalized={player.avgScore < threshold}
+                isWinner={index === 0}
+              />
+            </View>
+          ))}
+        </View>
+      )}
 
       <View style={styles.outcome}>
         <Text style={styles.outcomeLabel}>{iAmPenalized ? '탈락' : '생존'}</Text>
@@ -126,6 +144,16 @@ const styles = StyleSheet.create({
   list: {
     gap: 10,
     marginTop: 20,
+  },
+  loadingList: {
+    marginTop: 20,
+    alignItems: 'center',
+    gap: 10,
+  },
+  loadingText: {
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    color: colors.textMuted,
   },
   row: {
     flexDirection: 'row',

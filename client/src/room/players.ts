@@ -38,6 +38,18 @@ export async function listPlayers(roomId: string): Promise<LobbyPlayer[]> {
 }
 
 /**
+ * left_at 여부와 무관하게 전부 읽는다 — 세션 종합 결과를 재구성할 때 쓴다.
+ * end_session이 먼저 도착한 한 번만 실행되므로, 벌칙으로 이미 방을 나간
+ * 사람의 닉네임도 화면에 표시하려면 이 함수가 필요하다. player_read RLS는
+ * "내가 지금 그 방 소속인가"만 보므로, 나간 사람의 행 자체는 여전히 읽힌다.
+ */
+export async function listAllRoomPlayersEver(roomId: string): Promise<Array<{ id: string; nickname: string }>> {
+  const { data, error } = await supabase.from('players').select('id, nickname').eq('room_id', roomId)
+  if (error) throw error
+  return data as Array<{ id: string; nickname: string }>
+}
+
+/**
  * 입장·퇴장이 생길 때마다 목록을 다시 읽어 콜백으로 넘긴다.
  * 반환값을 호출하면 구독을 해제한다.
  */

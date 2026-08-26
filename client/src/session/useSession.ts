@@ -31,22 +31,11 @@ export interface UseSessionDeps {
 
 export interface SessionHandle {
   state: SessionState | null
-  /** 진행 중인 세션 id. 판 결과를 구독할 때 쓴다 */
+  /** 지금 세션의 id. 판별 점수 조회(scores 테이블 질의) 등에 쓴다 */
   sessionId: string | null
   verdict: SessionVerdict[] | null
-  /**
-   * 시작 시각(ms). 서버가 준 절대 시각이므로 `Date.now()`가 아니라
-   * 아래 `nowMs()`와 견줘야 카운트다운이 맞는다.
-   */
+  /** 보정된 서버 시각 기준의 시작 시각(ms) */
   startsAtMs: number | null
-  /**
-   * 보정된 현재 시각(ms).
-   *
-   * 폰 시계는 서버와 몇 초씩 어긋나 있는 게 정상이라, 남은 시간을
-   * `startsAtMs - Date.now()`로 재면 사람마다 출발선이 달라진다
-   * (백엔드_Supabase명세.md §5.9).
-   */
-  nowMs: () => number
   error: SessionErrorCode | null
   /** 방장만 부른다 */
   start: () => Promise<void>
@@ -62,9 +51,9 @@ function reducer(state: SessionState | null, event: InternalEvent): SessionState
 
 export function useSession(deps: UseSessionDeps): SessionHandle {
   const [state, dispatch] = useReducer(reducer, null)
+  const [sessionId, setSessionId] = useState<string | null>(null)
   const [verdict, setVerdict] = useState<SessionVerdict[] | null>(null)
   const [startsAtMs, setStartsAtMs] = useState<number | null>(null)
-  const [sessionId, setSessionId] = useState<string | null>(null)
   const [error, setError] = useState<SessionErrorCode | null>(null)
 
   const sessionIdRef = useRef<string | null>(null)
@@ -74,9 +63,9 @@ export function useSession(deps: UseSessionDeps): SessionHandle {
   const begin = useCallback(
     (row: SessionRow) => {
       sessionIdRef.current = row.session_id
-      setSessionId(row.session_id)
       submittedRef.current = new Set()
       endedRef.current = false
+      setSessionId(row.session_id)
       setVerdict(null)
       setError(null)
       setStartsAtMs(Date.parse(row.starts_at))
@@ -102,16 +91,6 @@ export function useSession(deps: UseSessionDeps): SessionHandle {
   }, [deps.client, begin])
 
   const advance = useCallback((event: SessionEvent) => dispatch(event), [])
-
-  // 접속 시 한 번 서버와 시계를 맞춘다.
-  // 참가자는 start_session 응답을 못 받으므로 각자 독립적으로 구해야 한다.
-  // 실패해도 보정값 0으로 그냥 진행한다 — 카운트다운이 조금 어긋날 뿐,
-  // 세션을 막을 만한 일은 아니다.
-  useEffect(() => {
-    deps.clock.sync().catch(() => {})
-  }, [deps.clock])
-
-  const nowMs = useCallback(() => deps.clock.now(), [deps.clock])
 
   // 판이 끝날 때마다 그 판 점수를 올린다. 같은 판을 두 번 올리지 않는다.
   useEffect(() => {
@@ -139,5 +118,5 @@ export function useSession(deps: UseSessionDeps): SessionHandle {
       .catch((e) => setError(e instanceof SessionError ? e.code : 'UNKNOWN'))
   }, [state, deps.client])
 
-  return { state, sessionId, verdict, startsAtMs, nowMs, error, start, advance }
+  return { state, sessionId, verdict, startsAtMs, error, start, advance }
 }

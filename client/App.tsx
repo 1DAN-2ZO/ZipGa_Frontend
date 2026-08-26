@@ -4,9 +4,11 @@ import {
   Quicksand_700Bold,
   useFonts,
 } from '@expo-google-fonts/quicksand'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { NicknameSheet } from './src/components/NicknameSheet'
+import { getGame } from './src/games/registry'
+import { ROUNDS_PER_SESSION, type GameResult } from './src/games/types'
 import { parseRoomDeepLink } from './src/lib/deepLink'
 import { KAKAO_T_STORE, openKakaoTaxi, type TaxiLaunchResult } from './src/lib/kakaoTaxi'
 import {
@@ -16,27 +18,43 @@ import {
   setStoredNickname,
   setStoredRoomCode,
 } from './src/lib/localProfile'
-import { checkRoom, createRoom, ensureAnonymousSession, joinRoom, leaveRoom, rejoinRoom, RoomError, setSessionPeriod } from './src/room/api'
-import { listPlayers, subscribeToPlayers } from './src/room/players'
-import { PENALTY_THRESHOLD } from './src/games/types'
 import { supabase } from './src/lib/supabase'
-import type { RpcClient } from './src/session/api'
-import { serverNowMs } from './src/session/api'
-import { createClock } from './src/session/clock'
-import { subscribeSessionStart } from './src/session/realtime'
-import { useSession } from './src/session/useSession'
+import { checkRoom, createRoom, ensureAnonymousSession, joinRoom, leaveRoom, rejoinRoom, RoomError, setSessionPeriod } from './src/room/api'
+import { listAllRoomPlayersEver, listPlayers, subscribeToPlayers } from './src/room/players'
+import { listSessionScores } from './src/room/scores'
+import { getActiveSessionId, subscribeActiveSession, subscribeSessionStart } from './src/room/sessions'
 import { CreateRoom } from './src/screens/CreateRoom'
+import { Countdown } from './src/screens/Countdown'
+import { GameHost } from './src/screens/GameHost'
+import { GameReveal } from './src/screens/GameReveal'
 import { GameSandbox } from './src/screens/GameSandbox'
 import { GoingHome } from './src/screens/GoingHome'
 import { Home } from './src/screens/Home'
 import { JoinRoom } from './src/screens/JoinRoom'
 import { Lobby, type LobbyPlayer } from './src/screens/Lobby'
+import { NextSessionWait } from './src/screens/NextSessionWait'
 import { RoomSetup } from './src/screens/RoomSetup'
-import { SessionHost } from './src/screens/SessionHost'
-import { SessionResult } from './src/screens/SessionResult'
+import { RoundResult } from './src/screens/RoundResult'
+import { SessionResult, type ResultPlayer } from './src/screens/SessionResult'
 import { Settings } from './src/screens/Settings'
 import { colors } from './src/theme/colors'
 import GameCheckHarness from './src/dev/GameCheckHarness'
+import { createClock } from './src/session/clock'
+import { serverNowMs, SessionError, type RpcClient } from './src/session/api'
+import { currentRound, sessionAverage } from './src/session/machine'
+import { useSession } from './src/session/useSession'
+
+/**
+ * session/api.ts는 순수 Promise를 반환하는 RpcClient를 기대하는데,
+ * supabase.rpc()는 구조적으로 다른 thenable(PostgrestFilterBuilder)을 반환한다.
+ * 얇게 감싸서 맞춘다.
+ */
+const sessionRpcClient: RpcClient = {
+  async rpc(fn, args) {
+    const { data, error } = await supabase.rpc(fn, args)
+    return { data, error }
+  },
+}
 
 const SCREENS = [
   'Home',
@@ -44,7 +62,11 @@ const SCREENS = [
   'CreateRoom',
   'JoinRoom',
   'Lobby',
-  'Session',
+  'NextSessionWait',
+  'GameReveal',
+  'Countdown',
+  'GameHost',
+  'RoundResult',
   'SessionResult',
   'GoingHome',
   'Game',
@@ -53,14 +75,8 @@ const SCREENS = [
 ] as const
 type ScreenName = (typeof SCREENS)[number]
 
-/**
- * 세션 최소 인원. 백엔드 start_session의 c_min_players와 같아야 한다.
- * 어긋나면 버튼은 눌리는데 서버가 NOT_ENOUGH_PLAYERS로 튕긴다.
- */
-const MIN_PLAYERS = 2
-
 function roomErrorMessage(e: unknown): string {
-  if (e instanceof RoomError) {
+  if (e instanceof RoomError || e instanceof SessionError) {
     switch (e.code) {
       case 'ROOM_NOT_FOUND':
         return '방을 찾을 수 없어요.'
@@ -70,6 +86,18 @@ function roomErrorMessage(e: unknown): string {
         return '이 방에서 회원님을 찾을 수 없어요.'
       case 'AUTH_REQUIRED':
         return '로그인이 필요해요. 앱을 다시 시작해주세요.'
+      case 'NOT_IN_ROOM':
+        return '방 멤버가 아니에요.'
+      case 'NOT_HOST':
+        return '방장만 할 수 있어요.'
+      case 'SESSION_IN_PROGRESS':
+        return '이미 게임이 진행 중이에요.'
+      case 'SESSION_NOT_ACTIVE':
+        return '세션이 이미 끝났어요.'
+      case 'NOT_ENOUGH_PLAYERS':
+        return '2명부터 시작할 수 있어요.'
+      case 'BAD_PERIOD':
+        return '잘못된 주기 값이에요.'
       default:
         return '알 수 없는 오류가 발생했어요.'
     }
@@ -99,38 +127,30 @@ export default function App() {
   const [joinLoading, setJoinLoading] = useState(false)
   const [joinError, setJoinError] = useState<string | null>(null)
   const [lobbyPlayers, setLobbyPlayers] = useState<LobbyPlayer[]>([])
-
-  // --- 세션 엔진 ---
-  // useSession에 넘기는 객체는 반드시 메모해야 한다. 매 렌더마다 새로 만들면
-  // Realtime 구독이 계속 끊겼다 붙는다 (useSession.ts UseSessionDeps 주석).
-  const rpcClient = useMemo<RpcClient>(
-    () => ({
-      async rpc(fn, args) {
-        const { data, error } = await supabase.rpc(fn, args)
-        return { data, error: error ? { message: error.message } : null }
-      },
-    }),
-    [],
-  )
-  const clock = useMemo(
-    () => createClock({ fetchServerNowMs: () => serverNowMs(rpcClient), localNowMs: () => Date.now() }),
-    [rpcClient],
-  )
-  const sessionDeps = useMemo(
-    () => ({
-      client: rpcClient,
-      clock,
-      // 방에 없으면 구독할 것이 없다. 정리 함수 모양은 맞춰서 돌려준다.
-      subscribeSessionStart: (cb: Parameters<typeof subscribeSessionStart>[1]) =>
-        roomId ? subscribeSessionStart(roomId, cb) : () => {},
-    }),
-    [rpcClient, clock, roomId],
-  )
-  const session = useSession(sessionDeps)
+  /** end_session 응답을 못 받았을 때(누군가 이미 먼저 끝냄) 직접 재구성한 전체 순위 */
+  const [fallbackResultPlayers, setFallbackResultPlayers] = useState<ResultPlayer[] | null>(null)
+  /** 이 방에 지금 진행 중인(끝나지 않은) 세션이 있는지. S11 대기 화면 라우팅에만 쓴다 */
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
 
   const [nicknameSheetVisible, setNicknameSheetVisible] = useState(false)
   const pendingAfterNicknameRef = useRef<((nickname: string) => void) | null>(null)
   const initialDeepLinkHandledRef = useRef(false)
+
+  // 폰 시계가 아니라 서버 보정 시각 기준으로 카운트다운을 맞춘다 (한 번 만들어 계속 쓴다)
+  const clockRef = useRef(
+    createClock({ fetchServerNowMs: () => serverNowMs(sessionRpcClient), localNowMs: () => Date.now() }),
+  )
+
+  const sessionDeps = useMemo(
+    () => ({
+      client: sessionRpcClient,
+      clock: clockRef.current,
+      subscribeSessionStart: (cb: Parameters<typeof subscribeSessionStart>[1]) =>
+        roomId ? subscribeSessionStart(roomId, cb) : () => {},
+    }),
+    [roomId],
+  )
+  const session = useSession(sessionDeps)
 
   // 앱 최초 실행 1회: 익명 로그인 + 로컬에 저장된 닉네임·방 코드 로드
   useEffect(() => {
@@ -140,20 +160,17 @@ export default function App() {
       } catch (e) {
         console.warn('익명 로그인 실패', e)
       }
+      try {
+        await clockRef.current.sync()
+      } catch (e) {
+        console.warn('서버 시각 동기화 실패', e)
+      }
       const [storedNickname, code] = await Promise.all([getStoredNickname(), getStoredRoomCode()])
       setNickname(storedNickname)
       setStoredRoomCodeState(code)
       setBooting(false)
     })()
   }, [])
-
-  // 세션이 시작되면(방장은 start의 응답으로, 참가자는 Realtime으로) 진행 화면으로 옮긴다.
-  // 3판이 끝나면 종합 결과로 넘긴다.
-  useEffect(() => {
-    const phase = session.state?.phase
-    if (!phase) return
-    setScreen(phase === 'final' ? 'SessionResult' : 'Session')
-  }, [session.state?.phase])
 
   // 방에 들어와 있는 동안 참가자 목록을 실시간으로 받는다
   useEffect(() => {
@@ -164,6 +181,87 @@ export default function App() {
     listPlayers(roomId).then(setLobbyPlayers).catch(() => {})
     return subscribeToPlayers(roomId, setLobbyPlayers)
   }, [roomId])
+
+  // 이 방에 지금 진행 중인 세션이 있는지 계속 최신으로 들고 있는다. 세션 도중에 새로
+  // 입장·재입장한 사람을 로비 대신 대기 화면(S11)으로 돌리는 데만 쓴다.
+  useEffect(() => {
+    if (!roomId) {
+      setActiveSessionId(null)
+      return
+    }
+    getActiveSessionId(roomId).then(setActiveSessionId).catch(() => {})
+    return subscribeActiveSession(roomId, setActiveSessionId)
+  }, [roomId])
+
+  // 세션이 시작되면(방장이 눌렀든, 참가자로서 Realtime으로 알게 됐든) 로비를 벗어나
+  // 게임 3개 공개(S4)로 넘어간다. 그 뒤 단계는 각 화면의 onDone이 직접 넘긴다.
+  useEffect(() => {
+    if (screen === 'Lobby' && session.state?.phase === 'lineup') {
+      setFallbackResultPlayers(null) // 지난 세션의 잔여 결과를 지운다
+      setScreen('GameReveal')
+    }
+  }, [screen, session.state])
+
+  // 이미 진행 중인 세션의 sessions INSERT는 놓쳤으므로(subscribeSessionStart는 그 이후의
+  // INSERT만 본다) session.state가 안 채워진다 — 그런 사람은 로비 대신 대기 화면으로 보낸다.
+  // (mdfile/프론트엔드_화면명세.md S11 — "세션 도중 입장·재입장한 사람은 끼지 않는다")
+  useEffect(() => {
+    if (screen === 'Lobby' && activeSessionId !== null && session.state === null) {
+      setScreen('NextSessionWait')
+    }
+  }, [screen, activeSessionId, session.state])
+
+  // 대기 중이던 세션이 끝나면(activeSessionId가 null이 되면) 자동으로 로비로 돌아간다.
+  useEffect(() => {
+    if (screen === 'NextSessionWait' && activeSessionId === null) {
+      setScreen('Lobby')
+    }
+  }, [screen, activeSessionId])
+
+  // end_session은 "먼저 도착한 한 번만" 실행된다 — 뒤에 도착한 클라이언트는
+  // 이 자리에서 SESSION_NOT_ACTIVE를 받는데, 이건 실제 오류가 아니라 예상된 경쟁
+  // 결과다. 서버 응답 대신 raw 점수를 직접 읽어 같은 계산을 재구성한다.
+  // (내 생존/탈락 판정 자체는 이 결과와 무관하게 로컬로 이미 확정돼 있다 — SessionResult 참고)
+  useEffect(() => {
+    if (session.state?.phase !== 'final' || session.verdict !== null) return
+    if (session.error !== 'SESSION_NOT_ACTIVE') return
+    if (!session.sessionId || !roomId) return
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [rows, allPlayers] = await Promise.all([
+          listSessionScores(session.sessionId as string),
+          listAllRoomPlayersEver(roomId),
+        ])
+        const totals = new Map<string, number>()
+        for (const row of rows) {
+          totals.set(row.playerId, (totals.get(row.playerId) ?? 0) + row.normalized)
+        }
+        const nameOf = new Map(allPlayers.map((p) => [p.id, p.nickname]))
+        const reconstructed: ResultPlayer[] = [...totals.entries()].map(([playerId, sum]) => ({
+          id: playerId,
+          nickname: nameOf.get(playerId) ?? '???',
+          avgScore: sum / ROUNDS_PER_SESSION,
+        }))
+        if (!cancelled) setFallbackResultPlayers(reconstructed)
+      } catch (e) {
+        // 벌칙으로 이미 방을 나간 경우 RLS상 이 조회도 막힌다 — 그럴 땐 전체 순위 없이
+        // 내 결과(로컬 확정값)만 보여주는 것으로 충분하다.
+        console.warn('세션 결과 재구성 실패', e)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [session.state, session.verdict, session.error, session.sessionId, roomId])
+
+  useEffect(() => {
+    const isBenignRaceLoss = session.error === 'SESSION_NOT_ACTIVE' && session.state?.phase === 'final'
+    if (session.error && !isBenignRaceLoss) {
+      Alert.alert('알림', roomErrorMessage(new SessionError(session.error, session.error)))
+    }
+  }, [session.error, session.state])
 
   // 초대 딥링크(jipga://room/{code})로 들어온 경우. QR 스캔을 건너뛰고 바로 참여로 간다.
   // (mdfile/프론트엔드_화면명세.md S2 — "딥링크 진입도 같은 경로를 탄다")
@@ -224,11 +322,11 @@ export default function App() {
       await setStoredRoomCode(result.roomCode)
       setStoredRoomCodeState(result.roomCode)
       // 방장이자 방 안에 있어야 통과하므로 create_room 다음에 부른다 (백엔드 §5.10).
-      // 주기 설정이 실패해도 방은 이미 만들어졌다 — 기본값 30분으로 두고 넘어간다.
+      // 실패해도 방은 이미 만들어졌다 — 기본값 30분으로 두고 넘어간다.
       try {
         await setSessionPeriod(intervalMinutes)
-      } catch (e) {
-        console.warn('set_session_period 실패', e)
+      } catch (err) {
+        console.warn('set_session_period 실패', err)
       }
     } catch (e) {
       setCreateRoomError(roomErrorMessage(e))
@@ -314,9 +412,34 @@ export default function App() {
     setLaunch(await openKakaoTaxi())
   }
 
+  // --- 세션 흐름(S4~S8) 화면 전환. 시작 신호만 Realtime이고 그 뒤는 각자 폰에서 진행된다. ---
+  function handleGameRevealDone() {
+    session.advance({ type: 'LINEUP_SHOWN' })
+    setScreen('Countdown')
+  }
+
+  function handleCountdownDone() {
+    session.advance({ type: 'COUNTDOWN_DONE' })
+    setScreen('GameHost')
+  }
+
+  function handleRoundFinished(result: GameResult) {
+    session.advance({ type: 'ROUND_FINISHED', result })
+    setScreen('RoundResult')
+  }
+
+  function handleRoundResultDone() {
+    const isLast = (session.state?.roundIndex ?? 0) + 1 >= ROUNDS_PER_SESSION
+    session.advance({ type: 'ROUND_RESULT_DONE' })
+    setScreen(isLast ? 'SessionResult' : 'Countdown')
+  }
+
   if (!fontsLoaded || booting) return null
 
-  const isHost = lobbyPlayers.some((p) => p.id === myPlayerId && p.isHost)
+  const isHost = lobbyPlayers.length > 0 && lobbyPlayers[0].id === myPlayerId
+  // 서버 응답과 무관하게 항상 확정되는 내 3판 평균. final 이전엔 null이라 0으로 방어한다
+  // (SessionResult는 phase==='final'일 때만 렌더링되므로 실제로는 항상 값이 있다).
+  const myAverage = (session.state && sessionAverage(session.state)) ?? 0
 
   return (
     <View style={{ flex: 1 }}>
@@ -365,13 +488,13 @@ export default function App() {
       {screen === 'Lobby' && (
         <Lobby
           players={lobbyPlayers}
-          threshold={PENALTY_THRESHOLD}
+          threshold={40}
           isHost={isHost}
+          // 세션 엔진(S4~S8)이 아직 안 붙어서 이 방에서 세션이 끝난 적이 없다 — 계산할
+          // 근거(session_period_min, 마지막 ended_at)가 없으므로 타이머 없음(null)이 맞다.
           nextSessionLabel={null}
-          canStart={lobbyPlayers.length >= MIN_PLAYERS}
-          onStartSession={() => {
-            session.start()
-          }}
+          canStart={lobbyPlayers.length >= 2}
+          onStartSession={() => session.start()}
           onLeaveRoom={handleLeaveRoom}
           onSettings={() => setScreen('Settings')}
           onShowInviteQr={() => {
@@ -380,21 +503,48 @@ export default function App() {
           }}
         />
       )}
-      {screen === 'Session' && (
-        <SessionHost
-          session={session}
-          myPlayerId={myPlayerId}
-          onSettings={() => setScreen('Settings')}
+      {screen === 'NextSessionWait' && <NextSessionWait onSettings={() => setScreen('Settings')} />}
+      {session.state && screen === 'GameReveal' && (
+        <GameReveal plan={session.state.plan} onDone={handleGameRevealDone} />
+      )}
+      {session.state && session.startsAtMs !== null && screen === 'Countdown' && (
+        <Countdown
+          startsAtMs={session.startsAtMs}
+          now={() => clockRef.current.now()}
+          gameEmoji={getGame(currentRound(session.state).gameId).info.emoji}
+          gameName={getGame(currentRound(session.state).gameId).info.name}
+          gameDesc={getGame(currentRound(session.state).gameId).info.desc}
+          timeLimitSec={currentRound(session.state).timeLimitSec}
+          onDone={handleCountdownDone}
         />
       )}
-      {screen === 'SessionResult' && session.verdict && (
+      {session.state && screen === 'GameHost' && (
+        <GameHost
+          gameId={currentRound(session.state).gameId}
+          seed={currentRound(session.state).seed}
+          timeLimitSec={currentRound(session.state).timeLimitSec}
+          onFinish={handleRoundFinished}
+        />
+      )}
+      {session.state && session.sessionId && screen === 'RoundResult' && (
+        <RoundResult
+          sessionId={session.sessionId}
+          roundIndex={session.state.roundIndex}
+          players={lobbyPlayers}
+          myPlayerId={myPlayerId ?? ''}
+          gameName={getGame(currentRound(session.state).gameId).info.name}
+          onDone={handleRoundResultDone}
+        />
+      )}
+      {screen === 'SessionResult' && (
         <SessionResult
-          players={session.verdict.map((v) => ({
-            id: v.playerId,
-            nickname: v.nickname,
-            avgScore: v.avgScore,
-          }))}
-          threshold={PENALTY_THRESHOLD}
+          myAverage={myAverage}
+          players={
+            session.verdict !== null
+              ? session.verdict.map((v) => ({ id: v.playerId, nickname: v.nickname, avgScore: v.avgScore }))
+              : fallbackResultPlayers
+          }
+          threshold={40}
           myPlayerId={myPlayerId ?? ''}
           onSettings={() => setScreen('Settings')}
           onCallTaxi={callTaxi}
