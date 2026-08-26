@@ -37,6 +37,11 @@ desktop.ini
 # superpowers SDD 작업 공간 (스크래치)
 .superpowers/
 
+# 브라우저 자동화(Playwright) 부산물 — 페이지 스냅샷·콘솔 로그.
+# 소스가 아니라 검증하다 남는 흔적이고, 열어본 페이지가 그대로 찍히므로
+# 프로젝트와 무관한 브라우징 기록이 섞여 들어올 수 있다.
+.playwright-mcp/
+
 # logs
 *.log
 npm-debug.log*
