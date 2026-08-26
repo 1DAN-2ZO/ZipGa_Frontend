@@ -47,9 +47,20 @@ export function SessionResult({
   const sorted = players ? [...players].sort((a, b) => b.avgScore - a.avgScore) : null
   const iAmPenalized = myAverage < threshold
 
+  const verdictArrived = players !== null
+
   const [secondsLeft, setSecondsLeft] = useState(AUTO_ADVANCE_SEC)
   const advanceRef = useRef(false)
   useEffect(() => {
+    // 전체 순위가 아직 안 왔으면 자동 진행을 아예 시작하지 않는다 — 안 그러면
+    // useSession의 waitForAllScores(느린 사람 기다리기)가 무색해진다. 다들 모여서
+    // 진짜 결과가 뜬 다음에야 카운트다운이 돈다.
+    //
+    // 의존성은 players 배열 자체가 아니라 "도착했는지" 불리언이다. App.tsx가
+    // players를 매 렌더마다 새 배열(.map())로 만들어 넘기므로, 배열 참조를 그대로
+    // 넣으면 관계없는 렌더마다 이 effect가 다시 돌아 카운트다운이 계속 리셋된다.
+    if (!verdictArrived) return
+
     advanceRef.current = false
     setSecondsLeft(AUTO_ADVANCE_SEC)
     const advance = iAmPenalized ? onCallTaxi : onBackToLobby
@@ -72,7 +83,7 @@ export function SessionResult({
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [iAmPenalized, onCallTaxi, onBackToLobby])
+  }, [verdictArrived, iAmPenalized, onCallTaxi, onBackToLobby])
 
   return (
     <View style={styles.screen}>
@@ -81,7 +92,7 @@ export function SessionResult({
       {sorted === null ? (
         <View style={styles.loadingList}>
           <ActivityIndicator color={colors.primary} />
-          <Text style={styles.loadingText}>다른 참가자 순위를 기다리는 중…</Text>
+          <Text style={styles.loadingText}>점수 집계 중입니다…</Text>
         </View>
       ) : (
         <View style={styles.list}>
@@ -104,9 +115,11 @@ export function SessionResult({
       <View style={styles.outcome}>
         <Text style={styles.outcomeLabel}>{iAmPenalized ? '탈락' : '생존'}</Text>
         <Text style={styles.outcomeMessage}>
-          {iAmPenalized
-            ? `${secondsLeft}초 후에 택시를 호출합니다.`
-            : `${secondsLeft}초 후에 대기실로 이동합니다.`}
+          {!verdictArrived
+            ? '다른 참가자 점수를 기다리고 있어요.'
+            : iAmPenalized
+              ? `${secondsLeft}초 후에 택시를 호출합니다.`
+              : `${secondsLeft}초 후에 대기실로 이동합니다.`}
         </Text>
       </View>
     </View>

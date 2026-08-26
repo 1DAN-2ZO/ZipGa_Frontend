@@ -52,6 +52,8 @@ function makeDeps() {
           notify = null
         }
       },
+      getSessionParticipantIds: () => ['p1'],
+      waitForAllScores: async () => {},
       pool: POOL,
     },
   }

@@ -24,7 +24,7 @@ import { supabase } from './src/lib/supabase'
 import { checkRoom, createRoom, ensureAnonymousSession, joinRoom, leaveRoom, rejoinRoom, RoomError, setSessionPeriod } from './src/room/api'
 import { listAllRoomPlayersEver, listPlayers, subscribeToPlayers } from './src/room/players'
 import { joinRoomPresence } from './src/room/presence'
-import { listSessionScores } from './src/room/scores'
+import { listSessionScores, waitForAllScores } from './src/room/scores'
 import {
   getActiveSessionId,
   getNextSessionDueAt,
@@ -174,6 +174,10 @@ export default function App() {
   const clockRef = useRef(
     createClock({ fetchServerNowMs: () => serverNowMs(sessionRpcClient), localNowMs: () => Date.now() }),
   )
+  /** 세션이 시작되는 순간의 방 참가자 id 스냅샷. end_session을 부르기 전에 이
+   * 사람들이 3판을 다 냈는지 기다리는 데 쓴다(useSession의 END_SESSION_WAIT_MS) —
+   * ref라서 sessionDeps가 lobbyPlayers 변화마다 다시 안 만들어진다. */
+  const sessionRosterRef = useRef<string[]>([])
 
   const sessionDeps = useMemo(
     () => ({
@@ -181,6 +185,8 @@ export default function App() {
       clock: clockRef.current,
       subscribeSessionStart: (cb: Parameters<typeof subscribeSessionStart>[1]) =>
         roomId ? subscribeSessionStart(roomId, cb) : () => {},
+      getSessionParticipantIds: () => sessionRosterRef.current,
+      waitForAllScores,
     }),
     [roomId],
   )
@@ -315,6 +321,9 @@ export default function App() {
   useEffect(() => {
     if (screen === 'Lobby' && session.state?.phase === 'lineup') {
       setFallbackResultPlayers(null) // 지난 세션의 잔여 결과를 지운다
+      // 지금 이 순간의 참가자를 스냅샷으로 남긴다 — 세션 끝날 때 이 사람들이
+      // 3판을 다 냈는지 기다리는 기준이 된다(useSession의 waitForAllScores).
+      sessionRosterRef.current = lobbyPlayers.map((p) => p.id)
       // 폰을 안 보고 있으면 판이 그냥 지나가고 3판 평균 0점으로 강퇴된다.
       // 이 소리가 그 구멍을 메운다 (webDistribution.md §1.2).
       appSound.sessionStart()

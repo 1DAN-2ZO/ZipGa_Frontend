@@ -14,30 +14,26 @@ export interface SessionRow {
   starts_at: string
 }
 
-/**
- * ⚠️ 이 객체는 호출부에서 반드시 메모할 것.
- *
- * 인라인으로 만들면 매 렌더마다 새 객체가 되어 Realtime 구독이
- * 계속 끊겼다 붙는다. useMemo로 감싸거나 모듈 스코프에 둔다.
- */
 export interface UseSessionDeps {
   client: RpcClient
   clock: Clock
-  /** sessions INSERT 구독. 정리 함수를 돌려준다. */
   subscribeSessionStart: (cb: (row: SessionRow) => void) => () => void
-  /** 테스트에서 게임 풀을 주입하기 위한 통로 */
+  /** 지금 세션에 실제로 참여 중인 플레이어 id 목록. 종합 판정을 부르기 전에
+   * 이 사람들이 3판을 다 냈는지 기다리는 데 쓴다. */
+  getSessionParticipantIds: () => readonly string[]
+  /** 참가자 전원이 3판을 다 낼 때까지(또는 타임아웃까지) 기다린다. Realtime 배선은
+   * 앱 골격의 Supabase 계층(room/scores.ts)이 맡고, 여기는 함수만 주입받는다 —
+   * 세션 엔진에는 화면 코드도, Supabase 직접 의존도 없어야 한다. */
+  waitForAllScores: (sessionId: string, participantIds: readonly string[]) => Promise<void>
   pool?: readonly GameModule[]
 }
 
 export interface SessionHandle {
   state: SessionState | null
-  /** 지금 세션의 id. 판별 점수 조회(scores 테이블 질의) 등에 쓴다 */
   sessionId: string | null
   verdict: SessionVerdict[] | null
-  /** 보정된 서버 시각 기준의 시작 시각(ms) */
   startsAtMs: number | null
   error: SessionErrorCode | null
-  /** 방장만 부른다 */
   start: () => Promise<void>
   advance: (event: SessionEvent) => void
 }
@@ -108,15 +104,32 @@ export function useSession(deps: UseSessionDeps): SessionHandle {
   }, [state, deps.client])
 
   // 3판이 끝나면 판정을 요청한다. 한 번만 부른다.
+  //
+  // 요청 자체는 즉시 안 부르고, 이 세션 참가자 전원이 3판을 다 낼 때까지
+  // 최대 60초 기다린 뒤 부른다 — 누가 조금 늦게 진행되고 있어도 3판째 제출이
+  // end_session에 막 걸려 SESSION_NOT_ACTIVE로 거부당하는 일을 줄인다.
+  // (벌칙 판정 자체는 안 바뀐다 — 여전히 "3판 평균 < 40" 하나뿐이다.)
   useEffect(() => {
     const sessionId = sessionIdRef.current
     if (!state || !sessionId || state.phase !== 'final' || endedRef.current) return
     endedRef.current = true
 
-    endSession(deps.client, sessionId)
-      .then(setVerdict)
-      .catch((e) => setError(e instanceof SessionError ? e.code : 'UNKNOWN'))
-  }, [state, deps.client])
+    let cancelled = false
+    ;(async () => {
+      await deps.waitForAllScores(sessionId, deps.getSessionParticipantIds())
+      if (cancelled) return
+      try {
+        const result = await endSession(deps.client, sessionId)
+        if (!cancelled) setVerdict(result)
+      } catch (e) {
+        if (!cancelled) setError(e instanceof SessionError ? e.code : 'UNKNOWN')
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [state, deps])
 
   return { state, sessionId, verdict, startsAtMs, error, start, advance }
 }
