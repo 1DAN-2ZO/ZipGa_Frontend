@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { GestureResponderEvent, LayoutChangeEvent, StyleSheet, Text, View } from 'react-native'
 import { COLORS } from '../../theme'
+import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types'
 import { Scene } from './Scene'
 import { computeResult, DIFF_COUNT, makeScene, patchAt, WRONG_LOCK_MS } from './logic'
@@ -17,6 +18,7 @@ const BOARD_GAP = 12
  * 이미지는 빌드 시점에 번들되어 있다 — 게임 중 네트워크 통신은 0이다.
  */
 function SpotDiffGame({ seed, timeLimitSec, onFinish }: GameProps) {
+  const sound = useGameSound()
   const [sceneIndex, setSceneIndex] = useState(0)
   const [found, setFound] = useState<string[]>([])
   const [foundCount, setFoundCount] = useState(0)
@@ -103,12 +105,14 @@ function SpotDiffGame({ seed, timeLimitSec, onFinish }: GameProps) {
     // 맞힌 게 아니면 전부 오답이다. 빈 곳도 마찬가지다 —
     // 사진 대부분은 고친 자리가 아니라서, 빈 곳이 공짜면 마구 두드리는 게 이긴다.
     if (!patch || !scene.patchIds.includes(patch.id)) {
+      sound.miss()
       lockedUntilRef.current = Date.now() + WRONG_LOCK_MS
       setIsWrong(true)
       setTimeout(() => setIsWrong(false), WRONG_LOCK_MS)
       return
     }
 
+    sound.hit()
     lastFoundElapsedMsRef.current = Date.now() - startedAtRef.current
     foundCountRef.current += 1
     setFoundCount(foundCountRef.current)

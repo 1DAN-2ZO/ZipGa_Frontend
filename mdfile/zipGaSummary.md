@@ -122,11 +122,11 @@ client/src/
 
 | 문서 | 읽을 사람 |
 |---|---|
-| [집가_설계정리](https://github.com/1DAN-2ZO/ZipGa_Frontend/blob/main/mdfile/집가_설계정리.md) | 전체 — 무엇을 왜 이렇게 정했나 |
-| [프론트엔드_화면명세](https://github.com/1DAN-2ZO/ZipGa_Frontend/blob/main/mdfile/프론트엔드_화면명세.md) | 앱 골격 담당 — 화면 11개 |
-| [백엔드_Supabase명세](https://github.com/1DAN-2ZO/ZipGa_Frontend/blob/main/mdfile/백엔드_Supabase명세.md) | 백엔드 담당 — 스키마·RPC 전문 |
-| [백엔드_전달사항](https://github.com/1DAN-2ZO/ZipGa_Frontend/blob/main/mdfile/백엔드_전달사항.md) | 백엔드 담당 — **먼저 이것부터** |
-| [파장흐름 설계](https://github.com/1DAN-2ZO/ZipGa_Frontend/blob/main/mdfile/설계_파장흐름.md) | 전체 — 결정의 근거 |
+| [집가_설계정리](https://github.com/1DAN-2ZO/ZipGa_Frontend/blob/main/mdfile/zipGa.md) | 전체 — 무엇을 왜 이렇게 정했나 |
+| [프론트엔드_화면명세](https://github.com/1DAN-2ZO/ZipGa_Frontend/blob/main/mdfile/frontend.md) | 앱 골격 담당 — 화면 11개 |
+| [백엔드_Supabase명세](https://github.com/1DAN-2ZO/ZipGa_Frontend/blob/main/mdfile/supabase.md) | 백엔드 담당 — 스키마·RPC 전문 |
+| [백엔드_전달사항](https://github.com/1DAN-2ZO/ZipGa_Frontend/blob/main/mdfile/backend.md) | 백엔드 담당 — **먼저 이것부터** |
+| [파장흐름 설계](https://github.com/1DAN-2ZO/ZipGa_Frontend/blob/main/mdfile/sessionEnd.md) | 전체 — 결정의 근거 |
 
 **미니게임 담당자는** 설계 정리의 §4 게임 모듈 규격만 보면 된다. 받는 값 2개, 돌려주는 값 4개가 계약의 전부다.
 

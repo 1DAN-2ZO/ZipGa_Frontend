@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript · React (훅) · Supabase JS · Jest (`jest-expo`) · `@testing-library/react-native`
 
-**Spec:** `설계_파장흐름.md` (§6 세션은 랜덤 3판, §4.1 판정) · `백엔드_Supabase명세.md` (§5 RPC) · `프론트엔드_화면명세.md` (§3 흐름)
+**Spec:** `sessionEnd.md` (§6 세션은 랜덤 3판, §4.1 판정) · `supabase.md` (§5 RPC) · `frontend.md` (§3 흐름)
 
 ## Global Constraints
 

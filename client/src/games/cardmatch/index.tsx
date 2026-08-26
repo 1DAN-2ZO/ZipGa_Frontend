@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types';
 import { COLORS } from '../../theme';
 import { SETS } from './cardArt';
@@ -48,6 +49,7 @@ const C = {
 };
 
 function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
+  const sound = useGameSound()
   const limitMs = timeLimitSec * 1000;
   const boards = useMemo<Board[]>(() => makeBoards(seed), [seed]);
 
@@ -242,6 +244,7 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
       const values = boards[Math.min(boardIdxRef.current, boards.length - 1)].values;
 
       if (values[ia] === values[ib]) {
+        sound.hit();
         matchedRef.current += 1;
         totalRef.current += 1;
         lastMatchRef.current = now;

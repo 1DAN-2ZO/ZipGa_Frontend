@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types';
 import { COLORS } from '../../theme';
 import {
@@ -64,6 +65,7 @@ function Outlined({ text, size, color }: { text: string; size: number; color?: s
 }
 
 function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
+  const sound = useGameSound()
   const limitMs = timeLimitSec * 1000;
   const questions = useMemo<Question[]>(() => makeQuestions(seed), [seed]);
 
@@ -116,6 +118,7 @@ function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
     const answer = questions[qIdxRef.current].answer;
 
     if (v && Number.parseInt(v, 10) === answer) {
+      sound.hit();
       correctRef.current += 1;
       lastCorrectRef.current = Date.now() - startedAtRef.current;
       setCorrect(correctRef.current);

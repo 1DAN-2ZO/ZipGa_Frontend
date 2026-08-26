@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types'
 import { COLORS } from '../../theme'
 import { isComplete, normalize, TARGET_TAPS } from './logic'
@@ -14,6 +15,7 @@ function TapRushGame({ seed, timeLimitSec, onFinish }: GameProps) {
 
   const durationMs = timeLimitSec * 1000
 
+  const sound = useGameSound()
   const [taps, setTaps] = useState(0)
   const [elapsedMs, setElapsedMs] = useState(0)
 
@@ -58,9 +60,13 @@ function TapRushGame({ seed, timeLimitSec, onFinish }: GameProps) {
     if (finishedRef.current) return
     tapsRef.current += 1
     setTaps(tapsRef.current)
+    sound.tick()
     // 목표를 채우면 시간이 남아도 즉시 끝낸다. 먼저 채운 사람이 먼저 끝나야
     // 만점자끼리 순위가 갈린다.
-    if (isComplete(tapsRef.current)) finish()
+    if (isComplete(tapsRef.current)) {
+      sound.finish()
+      finish()
+    }
   }
 
   const remainSec = Math.max(0, Math.ceil((durationMs - elapsedMs) / 1000))

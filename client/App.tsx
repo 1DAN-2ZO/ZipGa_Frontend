@@ -12,6 +12,7 @@ import { ROUNDS_PER_SESSION, type GameResult } from './src/games/types'
 import { showAlert } from './src/lib/alerts'
 import { parseRoomDeepLink } from './src/lib/deepLink'
 import { openKakaoTaxi, storeUrl, type TaxiLaunchResult } from './src/lib/kakaoTaxi'
+import { setSoundEnabled, useAppSound } from './src/sound'
 import {
   clearStoredRoomCode,
   getStoredNickname,
@@ -125,6 +126,12 @@ export default function App() {
   const [booting, setBooting] = useState(true)
   const [screen, setScreen] = useState<ScreenName>('Home')
   const [soundEffectsEnabled, setSoundEffectsEnabled] = useState(true)
+  const appSound = useAppSound()
+
+  // 설정을 끄면 앱 전체가 조용해진다. 게임 10종이 각자 지킬 필요가 없다.
+  useEffect(() => {
+    setSoundEnabled(soundEffectsEnabled)
+  }, [soundEffectsEnabled])
   const [backgroundMusicEnabled, setBackgroundMusicEnabled] = useState(true)
   const [launch, setLaunch] = useState<TaxiLaunchResult | null>(null)
   /** GoingHome이 벌칙(집 가)인지 자발적 귀가(집에 갈래)인지 — 문구만 다르고 경로는 같다 */
@@ -305,6 +312,9 @@ export default function App() {
   useEffect(() => {
     if (screen === 'Lobby' && session.state?.phase === 'lineup') {
       setFallbackResultPlayers(null) // 지난 세션의 잔여 결과를 지운다
+      // 폰을 안 보고 있으면 판이 그냥 지나가고 3판 평균 0점으로 강퇴된다.
+      // 이 소리가 그 구멍을 메운다 (webDistribution.md §1.2).
+      appSound.sessionStart()
       setScreen('GameReveal')
     }
   }, [screen, session.state])
@@ -565,6 +575,7 @@ export default function App() {
   }
 
   function handleCountdownDone() {
+    appSound.go()
     session.advance({ type: 'COUNTDOWN_DONE' })
     setScreen('GameHost')
   }

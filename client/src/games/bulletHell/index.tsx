@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native'
 import { COLORS } from '../../theme'
+import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types'
 import {
   advance,
@@ -30,6 +31,7 @@ const TICK_MS = 16
  * 네트워크 코드는 없다.
  */
 function BulletHellGame({ seed, timeLimitSec, onFinish }: GameProps) {
+  const sound = useGameSound()
   const [arena, setArena] = useState<Arena | null>(null)
   const [bullets, setBullets] = useState<Bullet[]>([])
   const [player, setPlayer] = useState({ x: 0, y: 0 })
@@ -104,12 +106,15 @@ function BulletHellGame({ seed, timeLimitSec, onFinish }: GameProps) {
       setTimeLeft(Math.max(0, Math.ceil((limitMs - elapsed) / 1000)))
 
       if (isHit(playerRef.current, bulletsRef.current, arena)) {
+        // 총알에 맞았다 — 여기서 판이 끝난다.
+        sound.miss()
         setIsDead(true)
         finish(elapsed, true)
         return
       }
 
       if (elapsed >= limitMs) {
+        sound.finish()
         finish(limitMs, true)
       }
     }
