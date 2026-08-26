@@ -10,7 +10,7 @@ import { NicknameSheet } from './src/components/NicknameSheet'
 import { getGame } from './src/games/registry'
 import { ROUNDS_PER_SESSION, type GameResult } from './src/games/types'
 import { parseRoomDeepLink } from './src/lib/deepLink'
-import { KAKAO_T_STORE, openKakaoTaxi, type TaxiLaunchResult } from './src/lib/kakaoTaxi'
+import { openKakaoTaxi, storeUrl, type TaxiLaunchResult } from './src/lib/kakaoTaxi'
 import {
   clearStoredRoomCode,
   getStoredNickname,
@@ -618,7 +618,8 @@ export default function App() {
           onSettings={() => setScreen('Settings')}
           onOpenStore={() => {
             // 스킴은 이미 실패했다. 다시 시도하지 않고 스토어로 바로 보낸다.
-            Linking.openURL(KAKAO_T_STORE).catch(() => {})
+            // iOS에 플레이스토어 링크를 주면 열리기만 하고 설치가 안 된다.
+            Linking.openURL(storeUrl()).catch(() => {})
           }}
           onStay={() => setScreen('Lobby')}
         />
