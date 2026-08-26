@@ -94,7 +94,12 @@ export async function leaveRoom(): Promise<void> {
   await call('leave_room')
 }
 
-/** 방장이 방 세팅(S1/RoomSetup)에서 고른 게임 텀을 반영한다. 30/45/60만 허용된다. */
+/**
+ * 방장이 세션 주기를 정한다. 30 / 45 / 60만 허용된다 (백엔드 §5.10 BAD_PERIOD).
+ *
+ * 방을 만든 직후에 부른다 — 방장이자 방 안에 있어야 통과하므로
+ * create_room 이전에는 부를 수 없다.
+ */
 export async function setSessionPeriod(minutes: number): Promise<void> {
   await call('set_session_period', { p_minutes: minutes })
 }

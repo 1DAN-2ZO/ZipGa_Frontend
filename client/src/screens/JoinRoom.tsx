@@ -1,8 +1,9 @@
-import { MaterialIcons } from '@expo/vector-icons'
 import { useState } from 'react'
 import { StyleSheet, Text, TextInput, View } from 'react-native'
 import { PillButton } from '../components/PillButton'
+import { QrScanBox } from '../components/QrScanBox'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { CODE_LENGTH, isCompleteRoomCode, normalizeRoomCode } from '../lib/roomCode'
 import { colors, fonts, radius } from '../theme/colors'
 
 export interface JoinRoomProps {
@@ -14,8 +15,6 @@ export interface JoinRoomProps {
   errorMessage?: string | null
 }
 
-const CODE_LENGTH = 6
-
 export function JoinRoom({ onBack, onSettings, onSubmitCode, loading, errorMessage }: JoinRoomProps) {
   const [code, setCode] = useState('')
 
@@ -26,9 +25,7 @@ export function JoinRoom({ onBack, onSettings, onSubmitCode, loading, errorMessa
       <Text style={styles.heading}>QR 코드로 참여하기</Text>
       <Text style={styles.subheading}>화면 중앙에 QR 코드를 맞춰주세요.</Text>
 
-      <View style={styles.scanBox}>
-        <MaterialIcons name="qr-code-scanner" size={64} color={colors.primary} style={{ opacity: 0.4 }} />
-      </View>
+      <QrScanBox paused={loading} onScanned={onSubmitCode} />
 
       <View style={styles.dividerRow}>
         <View style={styles.dividerLine} />
@@ -43,14 +40,15 @@ export function JoinRoom({ onBack, onSettings, onSubmitCode, loading, errorMessa
           placeholder="방 코드 6자리"
           placeholderTextColor={colors.textMuted}
           value={code}
-          onChangeText={(v) => setCode(v.slice(0, CODE_LENGTH))}
+          onChangeText={(v) => setCode(normalizeRoomCode(v))}
           maxLength={CODE_LENGTH}
           autoCapitalize="characters"
+          autoCorrect={false}
         />
         <PillButton
           label={loading ? '참여 중…' : '참여하기'}
           onPress={() => onSubmitCode(code)}
-          disabled={code.length !== CODE_LENGTH || loading}
+          disabled={!isCompleteRoomCode(code) || loading}
         />
       </View>
 
@@ -79,19 +77,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 4,
-  },
-  scanBox: {
-    aspectRatio: 1,
-    maxWidth: 400,
-    alignSelf: 'center',
-    width: '100%',
-    marginTop: 32,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: colors.primary,
-    backgroundColor: '#F1E9FE',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   dividerRow: {
     flexDirection: 'row',

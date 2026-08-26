@@ -19,16 +19,7 @@ import {
   setStoredRoomCode,
 } from './src/lib/localProfile'
 import { supabase } from './src/lib/supabase'
-import {
-  checkRoom,
-  createRoom,
-  ensureAnonymousSession,
-  joinRoom,
-  leaveRoom,
-  rejoinRoom,
-  RoomError,
-  setSessionPeriod,
-} from './src/room/api'
+import { checkRoom, createRoom, ensureAnonymousSession, joinRoom, leaveRoom, rejoinRoom, RoomError, setSessionPeriod } from './src/room/api'
 import { listAllRoomPlayersEver, listPlayers, subscribeToPlayers } from './src/room/players'
 import { listSessionScores } from './src/room/scores'
 import { getActiveSessionId, subscribeActiveSession, subscribeSessionStart } from './src/room/sessions'
@@ -330,10 +321,12 @@ export default function App() {
       setActiveRoomCode(result.roomCode)
       await setStoredRoomCode(result.roomCode)
       setStoredRoomCodeState(result.roomCode)
+      // 방장이자 방 안에 있어야 통과하므로 create_room 다음에 부른다 (백엔드 §5.10).
+      // 실패해도 방은 이미 만들어졌다 — 기본값 30분으로 두고 넘어간다.
       try {
         await setSessionPeriod(intervalMinutes)
-      } catch (e) {
-        console.warn('set_session_period 실패', e)
+      } catch (err) {
+        console.warn('set_session_period 실패', err)
       }
     } catch (e) {
       setCreateRoomError(roomErrorMessage(e))
@@ -578,6 +571,7 @@ export default function App() {
           onToggleSoundEffects={setSoundEffectsEnabled}
           onToggleBackgroundMusic={setBackgroundMusicEnabled}
           onBack={() => setScreen('Home')}
+          onOpenSandbox={() => setScreen('Game')}
         />
       )}
       {/* 게임 담당자들이 시드 결정성을 두 폰에서 맞춰보는 확인용 화면. 실제 흐름과 무관하다 */}

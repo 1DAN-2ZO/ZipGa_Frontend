@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { GameModule, GameProps } from '../types';
+import { COLORS } from '../../theme';
 import {
   COUNTDOWN_MS,
   FALL_WINDOW_MS,
@@ -71,7 +72,7 @@ function Outlined({ text, size, color }: { text: string; size: number; color?: s
           {text}
         </Text>
       ))}
-      <Text style={[base, st.stackText, { color: color ?? C.white }]}>{text}</Text>
+      <Text style={[base, st.stackText, { color: color ?? C.sky }]}>{text}</Text>
     </View>
   );
 }
@@ -268,7 +269,7 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const slotW = 1 / ROUNDS;
 
   return (
-    <Pressable style={st.wrap} onPressIn={tap} accessibilityLabel="화면을 터치해 자를 멈추세요">
+    <Pressable testID="game-root" style={st.wrap} onPressIn={tap} accessibilityLabel="화면을 터치해 자를 멈추세요">
       <View style={st.head}>
         <Outlined text={big} size={phase === 'count' ? 104 : 88} />
         <View style={st.subWrap}><Outlined text={sub} size={19} /></View>
@@ -307,7 +308,7 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
         )}
         {readout && (
           <View style={st.readout} pointerEvents="none">
-            <Outlined text={readout.text} size={24} color={readout.bad ? '#FFD9D4' : C.white} />
+            <Outlined text={readout.text} size={24} color={readout.bad ? C.bad : C.sky} />
           </View>
         )}
         <View style={[st.bar, st.barBot]} />
@@ -320,7 +321,7 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
 const TARGET_TOTAL_CM_LOCAL = 90;
 
 const st = StyleSheet.create({
-  wrap: { flex: 1, width: '100%', backgroundColor: C.sky },
+  wrap: { flex: 1, width: '100%', backgroundColor: COLORS.bg },
 
   head: { paddingTop: 40, paddingHorizontal: 20, zIndex: 8 },
   stackText: { position: 'absolute', left: 0, right: 0 },
@@ -332,7 +333,7 @@ const st = StyleSheet.create({
     borderWidth: 3, borderColor: 'transparent',
     alignItems: 'center', justifyContent: 'center',
   },
-  slotOn: { backgroundColor: C.slotOn, borderColor: C.white },
+  slotOn: { backgroundColor: C.slotOn, borderColor: C.sky },
   slotText: { color: C.ink, fontWeight: '800', fontSize: 16 },
   slotX: { color: C.bad, fontWeight: '900', fontSize: 22 },
   slotDash: { color: C.ink, opacity: 0.45, fontSize: 20, fontWeight: '800' },
