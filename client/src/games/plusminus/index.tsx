@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import type { GameModule, GameProps } from '../types';
+import { COLORS } from '../../theme';
 import {
   COUNTDOWN_MS,
   MAX_ANSWER_DIGITS,
@@ -59,7 +60,7 @@ function Outlined({ text, size, color }: { text: string; size: number; color?: s
           {text}
         </Text>
       ))}
-      <Text style={[base, s.stack, { color: color ?? C.white }]}>{text}</Text>
+      <Text style={[base, s.stack, { color: color ?? C.grape }]}>{text}</Text>
     </View>
   );
 }
@@ -174,10 +175,10 @@ function PlusMinusGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const q = questions[qIdx];
   const state = phase === 'play' ? typingState(input, q.answer) : 'empty';
   const pct = (left / limitMs) * 100;
-  const barColor = left <= 5000 ? C.bad : left <= 10000 ? '#FFE066' : C.white;
+  const barColor = left <= 5000 ? C.bad : left <= 10000 ? COLORS.accent : C.grape;
 
   return (
-    <View style={s.wrap}>
+    <View testID="game-root" style={s.wrap}>
       <View style={s.head}>
         <Outlined text={String(correct)} size={88} />
         <View style={s.subWrap}>
@@ -230,7 +231,7 @@ function PlusMinusGame({ seed, timeLimitSec, onFinish }: GameProps) {
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, width: '100%', backgroundColor: C.grape },
+  wrap: { flex: 1, width: '100%', backgroundColor: COLORS.bg },
   stack: { position: 'absolute', left: 0, right: 0 },
 
   head: { paddingTop: 40, paddingHorizontal: 20 },
@@ -238,7 +239,7 @@ const s = StyleSheet.create({
 
   bar: {
     height: 12, marginHorizontal: 22, marginTop: 20,
-    borderRadius: 99, backgroundColor: 'rgba(43,23,128,0.35)', overflow: 'hidden',
+    borderRadius: 99, backgroundColor: COLORS.surfaceAlt, overflow: 'hidden',
   },
   barFill: { height: '100%', borderRadius: 99 },
 
@@ -246,7 +247,7 @@ const s = StyleSheet.create({
 
   q: {
     width: '100%', maxWidth: 340, paddingVertical: 26, paddingHorizontal: 20,
-    borderRadius: 24, backgroundColor: C.card, borderWidth: 4, borderColor: C.white,
+    borderRadius: 24, backgroundColor: C.card, borderWidth: 4, borderColor: C.grape,
     alignItems: 'center', justifyContent: 'center',
   },
   qCount: { backgroundColor: C.cardDim },
@@ -256,13 +257,13 @@ const s = StyleSheet.create({
 
   input: {
     width: '100%', maxWidth: 340, paddingVertical: 18, borderRadius: 22,
-    borderWidth: 4, borderColor: C.white, backgroundColor: C.white,
+    borderWidth: 4, borderColor: C.grape, backgroundColor: C.white,
     fontSize: 42, fontWeight: '900', color: C.ink,
   },
   inputWrong: { backgroundColor: C.badBg, borderColor: C.bad },
-  inputOff: { backgroundColor: 'rgba(255,255,255,0.45)', borderColor: 'rgba(255,255,255,0.55)' },
+  inputOff: { backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.border },
 
-  hint: { color: '#F0EBFF', fontSize: 13.5, fontWeight: '700', textAlign: 'center' },
+  hint: { color: COLORS.textMuted, fontSize: 13.5, fontWeight: '700', textAlign: 'center' },
 });
 
 export const plusminus: GameModule = {

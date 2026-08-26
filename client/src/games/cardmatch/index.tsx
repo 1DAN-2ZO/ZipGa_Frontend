@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { GameModule, GameProps } from '../types';
+import { COLORS } from '../../theme';
 import { SETS } from './cardArt';
 import {
   Board,
@@ -33,10 +34,16 @@ const COLLECT_MS = 360;   // 다 맞춘 카드가 가운데로 모이는 시간
 const CLEAR_HOLD_MS = 380; // "클리어!" 를 보여주는 시간
 const DEAL_STAGGER = 30;
 
+/**
+ * 뒤집기 전 카드(cardBack)의 짙은 초록만 이 게임의 것으로 남기고,
+ * 나머지 판·글씨는 공통 톤(theme.ts COLORS)을 따른다.
+ * 예전엔 어두운 배경 전용이라 크림색 글씨를 썼는데, 호스트 배경이 밝아서
+ * 글씨가 배경에 묻혔다.
+ */
 const C = {
-  bg: '#15120E', surface: '#262019', surface2: '#312A21', line: '#3B3229',
-  text: '#F6F1E7', text3: '#7D7263',
-  soju: '#3FA063', sojuDim: '#1F4A31', amber: '#F0B44C', miss: '#D9614F',
+  surface: COLORS.surfaceAlt, surface2: COLORS.surface, line: COLORS.border,
+  text: COLORS.text, text3: COLORS.textMuted,
+  soju: COLORS.good, sojuDim: '#D9F0E3', amber: COLORS.accent, miss: COLORS.bad,
   cardBack: '#2C4A38', cardBackEdge: '#3C6349',
 };
 
@@ -309,7 +316,7 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const icons = SETS[board.setIndex].icons;
 
   return (
-    <View style={s.wrap}>
+    <View testID="game-root" style={s.wrap}>
       <View style={s.hud}>
         <Text testID="clock" style={[s.clock, { color: left <= 10000 ? urgent : C.text }]}>
           {secs}
@@ -378,7 +385,7 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
 }
 
 const s = StyleSheet.create({
-  wrap: { width: '100%', paddingHorizontal: 18 },
+  wrap: { flex: 1, width: '100%', paddingHorizontal: 18, backgroundColor: COLORS.bg },
   fill: { flex: 1 },
   hud: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12 },
   clock: { fontSize: 38, fontWeight: '800', minWidth: 58 },

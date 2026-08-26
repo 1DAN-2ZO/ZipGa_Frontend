@@ -4,7 +4,7 @@ import {
   Quicksand_700Bold,
   useFonts,
 } from '@expo-google-fonts/quicksand'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { NicknameSheet } from './src/components/NicknameSheet'
 import { parseRoomDeepLink } from './src/lib/deepLink'
@@ -16,8 +16,15 @@ import {
   setStoredNickname,
   setStoredRoomCode,
 } from './src/lib/localProfile'
-import { checkRoom, createRoom, ensureAnonymousSession, joinRoom, leaveRoom, rejoinRoom, RoomError } from './src/room/api'
+import { checkRoom, createRoom, ensureAnonymousSession, joinRoom, leaveRoom, rejoinRoom, RoomError, setSessionPeriod } from './src/room/api'
 import { listPlayers, subscribeToPlayers } from './src/room/players'
+import { PENALTY_THRESHOLD } from './src/games/types'
+import { supabase } from './src/lib/supabase'
+import type { RpcClient } from './src/session/api'
+import { serverNowMs } from './src/session/api'
+import { createClock } from './src/session/clock'
+import { subscribeSessionStart } from './src/session/realtime'
+import { useSession } from './src/session/useSession'
 import { CreateRoom } from './src/screens/CreateRoom'
 import { GameSandbox } from './src/screens/GameSandbox'
 import { GoingHome } from './src/screens/GoingHome'
@@ -25,6 +32,7 @@ import { Home } from './src/screens/Home'
 import { JoinRoom } from './src/screens/JoinRoom'
 import { Lobby, type LobbyPlayer } from './src/screens/Lobby'
 import { RoomSetup } from './src/screens/RoomSetup'
+import { SessionHost } from './src/screens/SessionHost'
 import { SessionResult } from './src/screens/SessionResult'
 import { Settings } from './src/screens/Settings'
 import { colors } from './src/theme/colors'
@@ -36,6 +44,7 @@ const SCREENS = [
   'CreateRoom',
   'JoinRoom',
   'Lobby',
+  'Session',
   'SessionResult',
   'GoingHome',
   'Game',
@@ -44,13 +53,11 @@ const SCREENS = [
 ] as const
 type ScreenName = (typeof SCREENS)[number]
 
-const MOCK_RESULT_PLAYERS = [
-  { id: '1', nickname: 'PlayerOne', avgScore: 98 },
-  { id: '2', nickname: 'PlayerTwo', avgScore: 85 },
-  { id: '3', nickname: 'PlayerThree', avgScore: 72 },
-  { id: '4', nickname: 'PlayerFive', avgScore: 38 },
-  { id: '5', nickname: 'PlayerSix', avgScore: 21 },
-]
+/**
+ * 세션 최소 인원. 백엔드 start_session의 c_min_players와 같아야 한다.
+ * 어긋나면 버튼은 눌리는데 서버가 NOT_ENOUGH_PLAYERS로 튕긴다.
+ */
+const MIN_PLAYERS = 2
 
 function roomErrorMessage(e: unknown): string {
   if (e instanceof RoomError) {
@@ -93,6 +100,34 @@ export default function App() {
   const [joinError, setJoinError] = useState<string | null>(null)
   const [lobbyPlayers, setLobbyPlayers] = useState<LobbyPlayer[]>([])
 
+  // --- 세션 엔진 ---
+  // useSession에 넘기는 객체는 반드시 메모해야 한다. 매 렌더마다 새로 만들면
+  // Realtime 구독이 계속 끊겼다 붙는다 (useSession.ts UseSessionDeps 주석).
+  const rpcClient = useMemo<RpcClient>(
+    () => ({
+      async rpc(fn, args) {
+        const { data, error } = await supabase.rpc(fn, args)
+        return { data, error: error ? { message: error.message } : null }
+      },
+    }),
+    [],
+  )
+  const clock = useMemo(
+    () => createClock({ fetchServerNowMs: () => serverNowMs(rpcClient), localNowMs: () => Date.now() }),
+    [rpcClient],
+  )
+  const sessionDeps = useMemo(
+    () => ({
+      client: rpcClient,
+      clock,
+      // 방에 없으면 구독할 것이 없다. 정리 함수 모양은 맞춰서 돌려준다.
+      subscribeSessionStart: (cb: Parameters<typeof subscribeSessionStart>[1]) =>
+        roomId ? subscribeSessionStart(roomId, cb) : () => {},
+    }),
+    [rpcClient, clock, roomId],
+  )
+  const session = useSession(sessionDeps)
+
   const [nicknameSheetVisible, setNicknameSheetVisible] = useState(false)
   const pendingAfterNicknameRef = useRef<((nickname: string) => void) | null>(null)
   const initialDeepLinkHandledRef = useRef(false)
@@ -111,6 +146,14 @@ export default function App() {
       setBooting(false)
     })()
   }, [])
+
+  // 세션이 시작되면(방장은 start의 응답으로, 참가자는 Realtime으로) 진행 화면으로 옮긴다.
+  // 3판이 끝나면 종합 결과로 넘긴다.
+  useEffect(() => {
+    const phase = session.state?.phase
+    if (!phase) return
+    setScreen(phase === 'final' ? 'SessionResult' : 'Session')
+  }, [session.state?.phase])
 
   // 방에 들어와 있는 동안 참가자 목록을 실시간으로 받는다
   useEffect(() => {
@@ -169,8 +212,7 @@ export default function App() {
     action?.(value)
   }
 
-  async function handleRoomSetupNext() {
-    // TODO: set_session_period 호출은 세션 엔진이 붙으면 같이 넣는다. 지금은 방 생성에만 쓴다.
+  async function handleRoomSetupNext(intervalMinutes: number) {
     setScreen('CreateRoom')
     setCreatingRoom(true)
     setCreateRoomError(null)
@@ -181,6 +223,13 @@ export default function App() {
       setActiveRoomCode(result.roomCode)
       await setStoredRoomCode(result.roomCode)
       setStoredRoomCodeState(result.roomCode)
+      // 방장이자 방 안에 있어야 통과하므로 create_room 다음에 부른다 (백엔드 §5.10).
+      // 주기 설정이 실패해도 방은 이미 만들어졌다 — 기본값 30분으로 두고 넘어간다.
+      try {
+        await setSessionPeriod(intervalMinutes)
+      } catch (e) {
+        console.warn('set_session_period 실패', e)
+      }
     } catch (e) {
       setCreateRoomError(roomErrorMessage(e))
     } finally {
@@ -267,7 +316,7 @@ export default function App() {
 
   if (!fontsLoaded || booting) return null
 
-  const isHost = lobbyPlayers.length > 0 && lobbyPlayers[0].id === myPlayerId
+  const isHost = lobbyPlayers.some((p) => p.id === myPlayerId && p.isHost)
 
   return (
     <View style={{ flex: 1 }}>
@@ -290,8 +339,8 @@ export default function App() {
         <RoomSetup
           onBack={() => setScreen('Home')}
           onSettings={() => setScreen('Settings')}
-          onNext={() => {
-            handleRoomSetupNext()
+          onNext={(intervalMinutes) => {
+            handleRoomSetupNext(intervalMinutes)
           }}
         />
       )}
@@ -316,11 +365,13 @@ export default function App() {
       {screen === 'Lobby' && (
         <Lobby
           players={lobbyPlayers}
-          threshold={40}
+          threshold={PENALTY_THRESHOLD}
           isHost={isHost}
-          nextSessionLabel="12:34"
-          canStart
-          onStartSession={() => {}}
+          nextSessionLabel={null}
+          canStart={lobbyPlayers.length >= MIN_PLAYERS}
+          onStartSession={() => {
+            session.start()
+          }}
           onLeaveRoom={handleLeaveRoom}
           onSettings={() => setScreen('Settings')}
           onShowInviteQr={() => {
@@ -329,11 +380,22 @@ export default function App() {
           }}
         />
       )}
-      {screen === 'SessionResult' && (
+      {screen === 'Session' && (
+        <SessionHost
+          session={session}
+          myPlayerId={myPlayerId}
+          onSettings={() => setScreen('Settings')}
+        />
+      )}
+      {screen === 'SessionResult' && session.verdict && (
         <SessionResult
-          players={MOCK_RESULT_PLAYERS}
-          threshold={40}
-          myPlayerId="4"
+          players={session.verdict.map((v) => ({
+            id: v.playerId,
+            nickname: v.nickname,
+            avgScore: v.avgScore,
+          }))}
+          threshold={PENALTY_THRESHOLD}
+          myPlayerId={myPlayerId ?? ''}
           onSettings={() => setScreen('Settings')}
           onCallTaxi={callTaxi}
           onBackToLobby={() => setScreen('Lobby')}
@@ -359,6 +421,7 @@ export default function App() {
           onToggleSoundEffects={setSoundEffectsEnabled}
           onToggleBackgroundMusic={setBackgroundMusicEnabled}
           onBack={() => setScreen('Home')}
+          onOpenSandbox={() => setScreen('Game')}
         />
       )}
       {/* 게임 담당자들이 시드 결정성을 두 폰에서 맞춰보는 확인용 화면. 실제 흐름과 무관하다 */}

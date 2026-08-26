@@ -24,7 +24,14 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "집가가 초대 QR 코드를 읽으려면 카메라가 필요해요.",
+          "recordAudioAndroid": false
+        }
+      ]
     ]
   }
 }
