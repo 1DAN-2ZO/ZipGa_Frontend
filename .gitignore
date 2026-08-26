@@ -42,6 +42,11 @@ desktop.ini
 # 프로젝트와 무관한 브라우징 기록이 섞여 들어올 수 있다.
 .playwright-mcp/
 
+# 여기 안에 클론해 둔 별개 저장소(github.com/Chwijung/DailyLog-MCP).
+# 자체 .git을 가진 중첩 리포라 git이 안을 들여다보지 않는다. 무시하지 않으면
+# 커밋할 때 내용 없는 gitlink 한 줄로 들어가서, 받는 사람은 빈 폴더만 얻는다.
+DailyLog-MCP/
+
 # logs
 *.log
 npm-debug.log*
