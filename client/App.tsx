@@ -5,10 +5,11 @@ import {
   useFonts,
 } from '@expo-google-fonts/quicksand'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import { NicknameSheet } from './src/components/NicknameSheet'
 import { getGame } from './src/games/registry'
 import { ROUNDS_PER_SESSION, type GameResult } from './src/games/types'
+import { showAlert } from './src/lib/alerts'
 import { parseRoomDeepLink } from './src/lib/deepLink'
 import { openKakaoTaxi, storeUrl, type TaxiLaunchResult } from './src/lib/kakaoTaxi'
 import {
@@ -214,6 +215,34 @@ export default function App() {
     return joinRoomPresence(roomId, { playerId: myPlayerId, nickname }, setOnlinePlayerIds)
   }, [roomId, myPlayerId, nickname])
 
+  // 방장 승계 알림. lobbyPlayers가 이 방에서 처음 채워진 스냅샷은 기준값으로만 잡고
+  // (방금 만들었든 막 들어왔든, 그 시점의 방장 여부는 "승계"가 아니다) 그 이후에
+  // false -> true로 바뀔 때만 "네가 방장이 됐다"고 알린다.
+  const hostBaselineRef = useRef<{ roomId: string | null; wasHost: boolean }>({
+    roomId: null,
+    wasHost: false,
+  })
+  useEffect(() => {
+    if (!roomId || lobbyPlayers.length === 0) return
+
+    const amHostNow = lobbyPlayers.some((p) => p.isHost && p.id === myPlayerId)
+    const baseline = hostBaselineRef.current
+
+    if (baseline.roomId !== roomId) {
+      hostBaselineRef.current = { roomId, wasHost: amHostNow }
+      return
+    }
+
+    if (amHostNow && !baseline.wasHost) {
+      showAlert({
+        title: '방장이 되었어요',
+        text: '이전 방장이 방을 나가서 방장 권한을 넘겨받았어요.',
+        icon: 'info',
+      })
+    }
+    hostBaselineRef.current = { roomId, wasHost: amHostNow }
+  }, [roomId, myPlayerId, lobbyPlayers])
+
   // 이 방에 지금 진행 중인 세션이 있는지 계속 최신으로 들고 있는다. 세션 도중에 새로
   // 입장·재입장한 사람을 로비 대신 대기 화면(S11)으로 돌리는 데만 쓴다.
   useEffect(() => {
@@ -327,6 +356,12 @@ export default function App() {
       if (!code) return
       setScreen('JoinRoom')
       handleCheckAndJoin(code)
+      // 웹에서 ?room=CODE를 처리한 뒤엔 주소창을 정리한다 — 안 지우면 나중에
+      // 새로고침할 때마다 이 방으로 다시 자동 참여를 시도한다(join_room 자체는
+      // 멱등이라 위험하진 않지만, 주소창이 지저분한 채로 남는 건 안 좋다).
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.history.replaceState(null, '', window.location.pathname)
+      }
     }
 
     if (!initialDeepLinkHandledRef.current) {
@@ -398,12 +433,35 @@ export default function App() {
     setJoinLoading(true)
     setJoinError(null)
     try {
-      await checkRoom(code)
+      const { roomId: targetRoomId } = await checkRoom(code)
       setJoinLoading(false)
-      requireNickname((nick) => handleSubmitJoinCode(code, nick))
+      requireNickname(async (nick) => {
+        await warnIfNicknameTaken(targetRoomId, nick)
+        handleSubmitJoinCode(code, nick)
+      })
     } catch (e) {
       setJoinLoading(false)
       setJoinError(roomErrorMessage(e))
+    }
+  }
+
+  /**
+   * 닉네임 중복은 서버가 막지 않는다(백엔드_Supabase명세.md §4.0 주석) — 헷갈릴 수
+   * 있으니 클라이언트가 경고만 띄운다. 입장을 막지는 않는다.
+   */
+  async function warnIfNicknameTaken(targetRoomId: string, nick: string) {
+    try {
+      const existing = await listPlayers(targetRoomId)
+      const taken = existing.some((p) => p.nickname.trim().toLowerCase() === nick.trim().toLowerCase())
+      if (taken) {
+        await showAlert({
+          title: '이미 있는 닉네임이에요',
+          text: `"${nick}" 이름을 쓰는 사람이 이 방에 이미 있어요. 헷갈릴 수 있어요.`,
+          icon: 'warning',
+        })
+      }
+    } catch (e) {
+      console.warn('닉네임 중복 확인 실패', e)
     }
   }
 

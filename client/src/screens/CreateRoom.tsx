@@ -2,11 +2,8 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import QRCode from 'react-native-qrcode-svg'
 import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { buildRoomInviteUrl } from '../lib/deepLink'
 import { colors, fonts, radius } from '../theme/colors'
-
-function roomDeepLink(roomCode: string): string {
-  return `jipga://room/${roomCode}`
-}
 
 export interface CreateRoomProps {
   /** null이면 로딩 중, 문자열이면 발급된 방 코드 */
@@ -30,7 +27,7 @@ export function CreateRoom({ roomCode, onlineCount, errorMessage, onBack, onSett
 
       <View style={styles.qrBox}>
         {roomCode ? (
-          <QRCode value={roomDeepLink(roomCode)} size={220} color={colors.textPrimary} backgroundColor="transparent" />
+          <QRCode value={buildRoomInviteUrl(roomCode)} size={220} color={colors.textPrimary} backgroundColor="transparent" />
         ) : (
           <ActivityIndicator color={colors.primary} />
         )}

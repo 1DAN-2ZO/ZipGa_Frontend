@@ -1,0 +1,1258 @@
+# P2 게임 계약 Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 미니게임 담당자 9명이 서로를 기다리지 않고 즉시 병렬 착수할 수 있도록, 게임 모듈 계약과 참조 구현 1개를 완성한다.
+
+**Architecture:** 게임은 순수 클라이언트 컴포넌트다. 서버도 다른 플레이어도 모른 채 `seed`를 받아 문제를 만들고 `GameResult`를 돌려준다. 공정성은 전적으로 시드 결정성에 걸려 있으므로 PRNG를 가장 먼저, 가장 엄격하게 테스트한다. 각 게임은 `client/src/games/<id>/` 폴더 하나에 갇히고, 유일한 공유 지점은 `registry.ts`의 한 줄이다.
+
+**Tech Stack:** Expo (React Native) · TypeScript · Jest (`jest-expo`) · `@testing-library/react-native`
+
+**Spec:** `설계_파장흐름.md` (§3 게임 모듈 규격) · `집가_설계정리.md` §4
+
+## Global Constraints
+
+프로젝트 전역 규칙. 모든 태스크의 요구사항에 암묵적으로 포함된다.
+
+- **`normalizedScore`는 0~100이고 항상 높을수록 좋다.** 시간·실패 기반 게임은 게임 쪽에서 뒤집어 반환한다
+- **`higherIsBetter`는 존재하지 않는다.** 이전 설계에 있었으나 제거됐다
+- **벌칙 기준선은 앱 전역 상수 `PENALTY_THRESHOLD = 40`.** 게임별로 다른 기준선을 두지 않는다
+- **게임에 네트워크 코드를 넣지 않는다.** 게임 도중 통신은 0이다
+- **모든 무작위 요소는 `seed`에서 파생시킨다.** `Math.random()` 사용 금지
+- **시간 초과 시에도 그때까지의 점수를 반환한다.** 0점 처리 금지
+- **한 세션은 3판**이고 게임 풀은 총 10개다
+- 사용자 문구는 고정이다 — 벌칙 **"집 가"**, 자발 귀가 **"집에 갈래"**, 재입장 **"아직 안 갈래"**
+
+## 파일 구조
+
+```
+client/                          ← Expo 프로젝트 (신규)
+  src/
+    games/
+      types.ts        게임 계약 타입 + 결과 검증기
+      prng.ts         시드 PRNG와 파생 헬퍼
+      registry.ts     게임 목록 + 시드 기반 추첨
+      gugudan/
+        logic.ts      문제 생성·채점 (순수 함수)
+        index.tsx     화면 컴포넌트
+      __tests__/
+        prng.test.ts
+        types.test.ts
+        registry.test.ts
+        gugudan-logic.test.ts
+        gugudan-ui.test.tsx
+
+  게임개발가이드.md               ← 담당자 9명에게 배포할 문서 (신규)
+```
+
+책임 분리 기준: `logic.ts`(순수 함수)와 `index.tsx`(화면)를 나눈다. 공정성 검증은 전부 `logic.ts`에서 이뤄지므로 UI 없이 빠르게 테스트할 수 있고, 게임 담당자도 같은 패턴을 따르면 된다.
+
+---
+
+### Task 1: Expo 프로젝트와 테스트 러너
+
+**Files:**
+- Create: `client/` (Expo 스캐폴딩 전체)
+- Modify: `client/package.json`
+- Test: `client/src/games/__tests__/smoke.test.ts`
+
+**Interfaces:**
+- Consumes: 없음 (첫 태스크)
+- Produces: `npm test`가 `client/`에서 동작하는 상태. 이후 모든 태스크가 이 러너를 쓴다
+
+- [ ] **Step 1: Expo 프로젝트 생성**
+
+레포 루트(`C:\Coding\GipGa`)에서 실행한다. 루트에 바로 깔면 ``·`docs/`와 섞이고 나중에 `supabase/`도 들어와야 하므로 `client/` 하위에 둔다.
+
+```bash
+npx create-expo-app@latest client --template blank-typescript
+```
+
+- [ ] **Step 2: 테스트 의존성 설치**
+
+```bash
+cd client
+npx expo install jest-expo jest @types/jest react-test-renderer
+npm install --save-dev @testing-library/react-native
+```
+
+- [ ] **Step 3: Jest 설정 추가**
+
+`client/package.json`의 최상위에 다음을 추가한다. `"scripts"`에는 `test` 항목을 넣는다.
+
+```json
+{
+  "scripts": {
+    "test": "jest"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg)"
+    ]
+  }
+}
+```
+
+- [ ] **Step 4: 스모크 테스트 작성**
+
+`client/src/games/__tests__/smoke.test.ts`
+
+```ts
+describe('테스트 러너', () => {
+  it('동작한다', () => {
+    expect(1 + 1).toBe(2)
+  })
+})
+```
+
+- [ ] **Step 5: 테스트 실행**
+
+Run: `npm test` (in `client/`)
+Expected: PASS — 1 test passed
+
+- [ ] **Step 6: 커밋**
+
+```bash
+cd ..
+git add client
+git commit -m "chore: Expo 프로젝트 및 Jest 테스트 러너 구성"
+```
+
+---
+
+### Task 2: 시드 PRNG
+
+공정성의 근거가 되는 코드다. **"쟤는 쉬운 문제 나왔다"는 분쟁이 여기서 막힌다.** 결정성이 깨지면 앱 전체의 전제가 무너지므로 가장 엄격하게 테스트한다.
+
+**Files:**
+- Create: `client/src/games/prng.ts`
+- Test: `client/src/games/__tests__/prng.test.ts`
+
+**Interfaces:**
+- Consumes: 없음
+- Produces:
+  - `mulberry32(seed: number): () => number` — [0, 1) 난수 생성기
+  - `createRng(seed: number): Rng` — `{ next(): number; int(min: number, max: number): number; shuffle<T>(items: readonly T[]): T[] }`
+  - `deriveRoundSeeds(sessionSeed: number, rounds: number): number[]` — 세션 시드에서 각 판 시드 파생
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`client/src/games/__tests__/prng.test.ts`
+
+```ts
+import { createRng, deriveRoundSeeds, mulberry32 } from '../prng'
+
+describe('mulberry32', () => {
+  it('같은 시드는 같은 수열을 만든다', () => {
+    const a = mulberry32(12345)
+    const b = mulberry32(12345)
+    const seqA = [a(), a(), a(), a(), a()]
+    const seqB = [b(), b(), b(), b(), b()]
+    expect(seqA).toEqual(seqB)
+  })
+
+  it('다른 시드는 다른 수열을 만든다', () => {
+    const a = mulberry32(1)
+    const b = mulberry32(2)
+    expect([a(), a(), a()]).not.toEqual([b(), b(), b()])
+  })
+
+  it('0 이상 1 미만을 반환한다', () => {
+    const rng = mulberry32(999)
+    for (let i = 0; i < 1000; i++) {
+      const v = rng()
+      expect(v).toBeGreaterThanOrEqual(0)
+      expect(v).toBeLessThan(1)
+    }
+  })
+})
+
+describe('createRng.int', () => {
+  it('같은 시드는 같은 정수 수열을 만든다', () => {
+    const a = createRng(777)
+    const b = createRng(777)
+    expect([a.int(2, 9), a.int(2, 9)]).toEqual([b.int(2, 9), b.int(2, 9)])
+  })
+
+  it('min과 max를 포함하는 범위 안에 있다', () => {
+    const rng = createRng(42)
+    for (let i = 0; i < 1000; i++) {
+      const v = rng.int(2, 9)
+      expect(v).toBeGreaterThanOrEqual(2)
+      expect(v).toBeLessThanOrEqual(9)
+      expect(Number.isInteger(v)).toBe(true)
+    }
+  })
+
+  it('min과 max가 같으면 그 값만 나온다', () => {
+    const rng = createRng(5)
+    expect(rng.int(7, 7)).toBe(7)
+  })
+})
+
+describe('createRng.shuffle', () => {
+  it('같은 시드는 같은 순서를 만든다', () => {
+    const items = ['a', 'b', 'c', 'd', 'e']
+    expect(createRng(31).shuffle(items)).toEqual(createRng(31).shuffle(items))
+  })
+
+  it('원본 배열을 변경하지 않는다', () => {
+    const items = ['a', 'b', 'c']
+    createRng(1).shuffle(items)
+    expect(items).toEqual(['a', 'b', 'c'])
+  })
+
+  it('원소를 잃거나 더하지 않는다', () => {
+    const items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    const shuffled = createRng(88).shuffle(items)
+    expect([...shuffled].sort((x, y) => x - y)).toEqual(items)
+  })
+})
+
+describe('deriveRoundSeeds', () => {
+  it('같은 세션 시드는 같은 판 시드들을 만든다', () => {
+    expect(deriveRoundSeeds(555, 3)).toEqual(deriveRoundSeeds(555, 3))
+  })
+
+  it('요청한 개수만큼 반환한다', () => {
+    expect(deriveRoundSeeds(555, 3)).toHaveLength(3)
+  })
+
+  it('판마다 서로 다른 시드를 준다', () => {
+    const seeds = deriveRoundSeeds(555, 3)
+    expect(new Set(seeds).size).toBe(3)
+  })
+
+  it('32비트 양의 정수를 반환한다', () => {
+    for (const s of deriveRoundSeeds(123, 3)) {
+      expect(Number.isInteger(s)).toBe(true)
+      expect(s).toBeGreaterThan(0)
+      expect(s).toBeLessThanOrEqual(2147483647)
+    }
+  })
+})
+```
+
+- [ ] **Step 2: 테스트 실행해서 실패 확인**
+
+Run: `npm test -- prng` (in `client/`)
+Expected: FAIL — `Cannot find module '../prng'`
+
+- [ ] **Step 3: 최소 구현 작성**
+
+`client/src/games/prng.ts`
+
+```ts
+/**
+ * 시드 기반 난수 생성기.
+ *
+ * 모든 미니게임의 무작위 요소는 반드시 여기서 파생시킨다.
+ * Math.random()을 쓰면 폰마다 다른 문제가 나와 공정성이 깨진다.
+ */
+
+export function mulberry32(seed: number): () => number {
+  let a = seed >>> 0
+  return function next(): number {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+export interface Rng {
+  /** [0, 1) 실수 */
+  next(): number
+  /** min 이상 max 이하의 정수 */
+  int(min: number, max: number): number
+  /** 원본을 건드리지 않고 섞은 새 배열 */
+  shuffle<T>(items: readonly T[]): T[]
+}
+
+export function createRng(seed: number): Rng {
+  const next = mulberry32(seed)
+  return {
+    next,
+    int(min: number, max: number): number {
+      return min + Math.floor(next() * (max - min + 1))
+    },
+    shuffle<T>(items: readonly T[]): T[] {
+      const arr = [...items]
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(next() * (i + 1))
+        const tmp = arr[i]
+        arr[i] = arr[j]
+        arr[j] = tmp
+      }
+      return arr
+    },
+  }
+}
+
+/** 세션 시드 하나에서 각 판의 시드를 파생시킨다. */
+export function deriveRoundSeeds(sessionSeed: number, rounds: number): number[] {
+  const rng = mulberry32(sessionSeed)
+  const seeds: number[] = []
+  for (let i = 0; i < rounds; i++) {
+    seeds.push(Math.floor(rng() * 2147483646) + 1)
+  }
+  return seeds
+}
+```
+
+- [ ] **Step 4: 테스트 실행해서 통과 확인**
+
+Run: `npm test -- prng` (in `client/`)
+Expected: PASS — 13 tests passed
+
+- [ ] **Step 5: 커밋**
+
+```bash
+cd ..
+git add client/src/games/prng.ts client/src/games/__tests__/prng.test.ts
+git commit -m "feat: 시드 PRNG와 판 시드 파생 헬퍼"
+```
+
+---
+
+### Task 3: 게임 계약 타입과 결과 검증기
+
+타입만으로는 런타임에 계약 위반을 잡을 수 없다. **담당자가 10명이므로 `normalizedScore: 150`이나 `NaN`이 반드시 한 번은 올라온다.** 개발 모드에서 즉시 잡아내는 검증기를 같이 만든다.
+
+**Files:**
+- Create: `client/src/games/types.ts`
+- Test: `client/src/games/__tests__/types.test.ts`
+
+**Interfaces:**
+- Consumes: 없음
+- Produces:
+  - `GameInfo` — `{ id: string; name: string; emoji: string; desc: string; timeLimitSec: number }`
+  - `GameResult` — `{ normalizedScore: number; score: number; tiebreakMs: number; finished: boolean }`
+  - `GameProps` — `{ seed: number; timeLimitSec: number; onFinish: (result: GameResult) => void }`
+  - `GameModule` — `{ info: GameInfo; Component: React.ComponentType<GameProps> }`
+  - `PENALTY_THRESHOLD: 40`
+  - `ROUNDS_PER_SESSION: 3`
+  - `validateGameResult(result: GameResult, gameId: string): string[]` — 문제 목록. 빈 배열이면 정상
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`client/src/games/__tests__/types.test.ts`
+
+```ts
+import { PENALTY_THRESHOLD, ROUNDS_PER_SESSION, validateGameResult } from '../types'
+import type { GameResult } from '../types'
+
+const valid: GameResult = {
+  normalizedScore: 87.5,
+  score: 18,
+  tiebreakMs: 24310,
+  finished: true,
+}
+
+describe('상수', () => {
+  it('벌칙 기준선은 40이다', () => {
+    expect(PENALTY_THRESHOLD).toBe(40)
+  })
+
+  it('한 세션은 3판이다', () => {
+    expect(ROUNDS_PER_SESSION).toBe(3)
+  })
+})
+
+describe('validateGameResult', () => {
+  it('정상 결과에는 문제가 없다', () => {
+    expect(validateGameResult(valid, 'gugudan')).toEqual([])
+  })
+
+  it('경계값 0과 100을 허용한다', () => {
+    expect(validateGameResult({ ...valid, normalizedScore: 0 }, 'g')).toEqual([])
+    expect(validateGameResult({ ...valid, normalizedScore: 100 }, 'g')).toEqual([])
+  })
+
+  it('normalizedScore가 100을 넘으면 잡아낸다', () => {
+    const problems = validateGameResult({ ...valid, normalizedScore: 150 }, 'g')
+    expect(problems).toHaveLength(1)
+    expect(problems[0]).toContain('normalizedScore')
+  })
+
+  it('normalizedScore가 음수면 잡아낸다', () => {
+    expect(validateGameResult({ ...valid, normalizedScore: -1 }, 'g')).toHaveLength(1)
+  })
+
+  it('normalizedScore가 NaN이면 잡아낸다', () => {
+    expect(validateGameResult({ ...valid, normalizedScore: NaN }, 'g')).toHaveLength(1)
+  })
+
+  it('tiebreakMs가 음수면 잡아낸다', () => {
+    const problems = validateGameResult({ ...valid, tiebreakMs: -5 }, 'g')
+    expect(problems).toHaveLength(1)
+    expect(problems[0]).toContain('tiebreakMs')
+  })
+
+  it('score가 유한수가 아니면 잡아낸다', () => {
+    expect(validateGameResult({ ...valid, score: Infinity }, 'g')).toHaveLength(1)
+  })
+
+  it('문제가 여러 개면 전부 보고한다', () => {
+    const problems = validateGameResult(
+      { normalizedScore: 200, score: NaN, tiebreakMs: -1, finished: true },
+      'g',
+    )
+    expect(problems).toHaveLength(3)
+  })
+
+  it('게임 id를 메시지에 포함한다', () => {
+    const problems = validateGameResult({ ...valid, normalizedScore: 150 }, 'cardmatch')
+    expect(problems[0]).toContain('cardmatch')
+  })
+})
+```
+
+- [ ] **Step 2: 테스트 실행해서 실패 확인**
+
+Run: `npm test -- types` (in `client/`)
+Expected: FAIL — `Cannot find module '../types'`
+
+- [ ] **Step 3: 최소 구현 작성**
+
+`client/src/games/types.ts`
+
+```ts
+import type { ComponentType } from 'react'
+
+/** 벌칙 기준선. 세션 3판 평균이 이 값 미만이면 집에 간다. */
+export const PENALTY_THRESHOLD = 40
+
+/** 한 세션에서 연속으로 진행하는 판 수. */
+export const ROUNDS_PER_SESSION = 3
+
+/** 게임당 한 번 선언하는 정보. */
+export interface GameInfo {
+  /** 고유 식별자. 폴더명과 같게 한다. */
+  id: string
+  /** 표시 이름 */
+  name: string
+  /** 아이콘 */
+  emoji: string
+  /** 한 줄 설명 */
+  desc: string
+  /** 기본 제한시간(초) */
+  timeLimitSec: number
+}
+
+/** 게임이 앱에 돌려주는 값. */
+export interface GameResult {
+  /** 0~100. 항상 높을수록 좋다. 판정에 쓰이는 유일한 값. */
+  normalizedScore: number
+  /** 원점수. 화면 표시 전용이며 계산에 쓰이지 않는다. */
+  score: number
+  /** 걸린 시간(ms). 동점 판별용 — 항상 작을수록 유리하다. */
+  tiebreakMs: number
+  /** 끝까지 완주했는지. 중도 이탈·시간 초과 시 false. */
+  finished: boolean
+}
+
+/** 게임이 앱으로부터 받는 값. */
+export interface GameProps {
+  /** 랜덤 시드. 모든 플레이어가 동일한 값을 받는다. */
+  seed: number
+  /** 이 판의 제한시간(초) */
+  timeLimitSec: number
+  /** 종료 시 정확히 한 번 호출한다. */
+  onFinish: (result: GameResult) => void
+}
+
+/** registry에 등록되는 단위. */
+export interface GameModule {
+  info: GameInfo
+  Component: ComponentType<GameProps>
+}
+
+/**
+ * 게임이 계약을 지켰는지 검사한다.
+ *
+ * 담당자가 여럿이라 범위를 벗어난 값이 올라올 수 있다.
+ * 호스트가 개발 모드에서 호출해 즉시 드러내는 용도다.
+ *
+ * @returns 문제 설명 목록. 빈 배열이면 정상.
+ */
+export function validateGameResult(result: GameResult, gameId: string): string[] {
+  const problems: string[] = []
+
+  if (!Number.isFinite(result.normalizedScore) ||
+      result.normalizedScore < 0 ||
+      result.normalizedScore > 100) {
+    problems.push(
+      `[${gameId}] normalizedScore는 0~100이어야 하는데 ${result.normalizedScore}를 반환했습니다.`,
+    )
+  }
+
+  if (!Number.isFinite(result.score)) {
+    problems.push(`[${gameId}] score는 유한한 수여야 하는데 ${result.score}를 반환했습니다.`)
+  }
+
+  if (!Number.isFinite(result.tiebreakMs) || result.tiebreakMs < 0) {
+    problems.push(
+      `[${gameId}] tiebreakMs는 0 이상이어야 하는데 ${result.tiebreakMs}를 반환했습니다.`,
+    )
+  }
+
+  return problems
+}
+```
+
+- [ ] **Step 4: 테스트 실행해서 통과 확인**
+
+Run: `npm test -- types` (in `client/`)
+Expected: PASS — 11 tests passed
+
+- [ ] **Step 5: 커밋**
+
+```bash
+cd ..
+git add client/src/games/types.ts client/src/games/__tests__/types.test.ts
+git commit -m "feat: 게임 모듈 계약 타입과 결과 검증기"
+```
+
+---
+
+### Task 4: 참조 게임 로직 — 구구단 스피드전
+
+순수 함수만 담는다. **공정성 검증이 전부 여기서 이뤄지므로 UI 없이 빠르게 돌릴 수 있다.** 게임 담당자들이 따라 할 패턴이기도 하다.
+
+**Files:**
+- Create: `client/src/games/gugudan/logic.ts`
+- Test: `client/src/games/__tests__/gugudan-logic.test.ts`
+
+**Interfaces:**
+- Consumes: `createRng` (Task 2)
+- Produces:
+  - `QUESTION_COUNT: 20`
+  - `Question` — `{ a: number; b: number; answer: number }`
+  - `makeQuestions(seed: number): Question[]`
+  - `normalize(correctCount: number): number`
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`client/src/games/__tests__/gugudan-logic.test.ts`
+
+```ts
+import { makeQuestions, normalize, QUESTION_COUNT } from '../gugudan/logic'
+
+describe('makeQuestions', () => {
+  it('정해진 개수만큼 만든다', () => {
+    expect(makeQuestions(1)).toHaveLength(QUESTION_COUNT)
+  })
+
+  it('같은 시드는 완전히 같은 문제를 만든다', () => {
+    expect(makeQuestions(31337)).toEqual(makeQuestions(31337))
+  })
+
+  it('다른 시드는 다른 문제를 만든다', () => {
+    expect(makeQuestions(1)).not.toEqual(makeQuestions(2))
+  })
+
+  it('구구단 범위(2~9) 안에서만 낸다', () => {
+    for (const q of makeQuestions(5)) {
+      expect(q.a).toBeGreaterThanOrEqual(2)
+      expect(q.a).toBeLessThanOrEqual(9)
+      expect(q.b).toBeGreaterThanOrEqual(2)
+      expect(q.b).toBeLessThanOrEqual(9)
+    }
+  })
+
+  it('정답이 실제 곱셈 결과와 일치한다', () => {
+    for (const q of makeQuestions(77)) {
+      expect(q.answer).toBe(q.a * q.b)
+    }
+  })
+})
+
+describe('normalize', () => {
+  it('전부 맞히면 100이다', () => {
+    expect(normalize(QUESTION_COUNT)).toBe(100)
+  })
+
+  it('하나도 못 맞히면 0이다', () => {
+    expect(normalize(0)).toBe(0)
+  })
+
+  it('절반 맞히면 50이다', () => {
+    expect(normalize(QUESTION_COUNT / 2)).toBe(50)
+  })
+
+  it('음수 입력은 0으로 자른다', () => {
+    expect(normalize(-3)).toBe(0)
+  })
+
+  it('개수를 초과해도 100을 넘지 않는다', () => {
+    expect(normalize(QUESTION_COUNT + 10)).toBe(100)
+  })
+})
+```
+
+- [ ] **Step 2: 테스트 실행해서 실패 확인**
+
+Run: `npm test -- gugudan-logic` (in `client/`)
+Expected: FAIL — `Cannot find module '../gugudan/logic'`
+
+- [ ] **Step 3: 최소 구현 작성**
+
+`client/src/games/gugudan/logic.ts`
+
+```ts
+import { createRng } from '../prng'
+
+/** 한 판에 나오는 문제 수. 정규화의 분모가 된다. */
+export const QUESTION_COUNT = 20
+
+export interface Question {
+  a: number
+  b: number
+  answer: number
+}
+
+/**
+ * 시드에서 문제를 만든다.
+ *
+ * 같은 시드를 받은 모든 폰이 같은 문제를 같은 순서로 받는다.
+ * 이 결정성이 깨지면 "쟤는 쉬운 거 나왔다"는 분쟁이 생긴다.
+ */
+export function makeQuestions(seed: number): Question[] {
+  const rng = createRng(seed)
+  const questions: Question[] = []
+  for (let i = 0; i < QUESTION_COUNT; i++) {
+    const a = rng.int(2, 9)
+    const b = rng.int(2, 9)
+    questions.push({ a, b, answer: a * b })
+  }
+  return questions
+}
+
+/**
+ * 맞힌 개수를 0~100으로 정규화한다.
+ *
+ * 개수형 게임의 표준 매핑: 맞힌 수 / 전체 수 × 100
+ */
+export function normalize(correctCount: number): number {
+  const ratio = (correctCount / QUESTION_COUNT) * 100
+  return Math.min(100, Math.max(0, ratio))
+}
+```
+
+- [ ] **Step 4: 테스트 실행해서 통과 확인**
+
+Run: `npm test -- gugudan-logic` (in `client/`)
+Expected: PASS — 10 tests passed
+
+- [ ] **Step 5: 커밋**
+
+```bash
+cd ..
+git add client/src/games/gugudan/logic.ts client/src/games/__tests__/gugudan-logic.test.ts
+git commit -m "feat: 구구단 스피드전 로직"
+```
+
+---
+
+### Task 5: 참조 게임 UI
+
+**Files:**
+- Create: `client/src/games/gugudan/index.tsx`
+- Test: `client/src/games/__tests__/gugudan-ui.test.tsx`
+
+**Interfaces:**
+- Consumes: `GameModule` / `GameProps` / `GameResult` (Task 3), `makeQuestions` / `normalize` / `QUESTION_COUNT` (Task 4)
+- Produces: `gugudan: GameModule` — Task 6의 `registry.ts`가 import 한다
+
+계약에서 가장 틀리기 쉬운 두 지점을 여기서 못 박는다.
+
+1. **제한시간이 끝나면 스스로 종료하고 그때까지의 점수를 반환한다.** 0점 처리 금지
+2. **`onFinish`는 정확히 한 번만 호출한다.** 시간 만료와 완주가 겹치면 중복 호출이 난다
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`client/src/games/__tests__/gugudan-ui.test.tsx`
+
+```tsx
+import { act, fireEvent, render, screen } from '@testing-library/react-native'
+import { gugudan } from '../gugudan'
+import { makeQuestions, QUESTION_COUNT } from '../gugudan/logic'
+
+const Game = gugudan.Component
+
+beforeEach(() => {
+  jest.useFakeTimers()
+})
+
+afterEach(() => {
+  jest.useRealTimers()
+})
+
+function answer(value: number) {
+  fireEvent.changeText(screen.getByTestId('answer-input'), String(value))
+  fireEvent(screen.getByTestId('answer-input'), 'submitEditing')
+}
+
+describe('gugudan 모듈 정보', () => {
+  it('계약이 요구하는 정보를 모두 갖는다', () => {
+    expect(gugudan.info.id).toBe('gugudan')
+    expect(gugudan.info.name).toBeTruthy()
+    expect(gugudan.info.emoji).toBeTruthy()
+    expect(gugudan.info.desc).toBeTruthy()
+    expect(gugudan.info.timeLimitSec).toBeGreaterThan(0)
+  })
+})
+
+describe('gugudan 화면', () => {
+  it('첫 문제를 보여준다', () => {
+    const q = makeQuestions(7)[0]
+    render(<Game seed={7} timeLimitSec={30} onFinish={jest.fn()} />)
+    expect(screen.getByText(`${q.a} × ${q.b}`)).toBeTruthy()
+  })
+
+  it('제한시간이 지나면 스스로 종료한다', () => {
+    const onFinish = jest.fn()
+    render(<Game seed={7} timeLimitSec={30} onFinish={onFinish} />)
+
+    act(() => {
+      jest.advanceTimersByTime(30_000)
+    })
+
+    expect(onFinish).toHaveBeenCalledTimes(1)
+    expect(onFinish.mock.calls[0][0]).toMatchObject({ finished: false })
+  })
+
+  it('시간 초과여도 그때까지 맞힌 점수를 반환한다 (0점 처리 금지)', () => {
+    const onFinish = jest.fn()
+    const questions = makeQuestions(7)
+    render(<Game seed={7} timeLimitSec={30} onFinish={onFinish} />)
+
+    answer(questions[0].answer)
+    answer(questions[1].answer)
+
+    act(() => {
+      jest.advanceTimersByTime(30_000)
+    })
+
+    const result = onFinish.mock.calls[0][0]
+    expect(result.score).toBe(2)
+    expect(result.normalizedScore).toBeCloseTo((2 / QUESTION_COUNT) * 100)
+    expect(result.finished).toBe(false)
+  })
+
+  it('오답은 점수에 반영되지 않지만 다음 문제로 넘어간다', () => {
+    const onFinish = jest.fn()
+    const questions = makeQuestions(7)
+    render(<Game seed={7} timeLimitSec={30} onFinish={onFinish} />)
+
+    answer(questions[0].answer + 1)
+
+    expect(screen.getByText(`${questions[1].a} × ${questions[1].b}`)).toBeTruthy()
+
+    act(() => {
+      jest.advanceTimersByTime(30_000)
+    })
+    expect(onFinish.mock.calls[0][0].score).toBe(0)
+  })
+
+  it('전부 맞히면 완주로 끝난다', () => {
+    const onFinish = jest.fn()
+    const questions = makeQuestions(7)
+    render(<Game seed={7} timeLimitSec={300} onFinish={onFinish} />)
+
+    for (const q of questions) {
+      answer(q.answer)
+    }
+
+    expect(onFinish).toHaveBeenCalledTimes(1)
+    expect(onFinish.mock.calls[0][0]).toMatchObject({
+      finished: true,
+      score: QUESTION_COUNT,
+      normalizedScore: 100,
+    })
+  })
+
+  it('완주 후 시간이 지나도 onFinish를 다시 부르지 않는다', () => {
+    const onFinish = jest.fn()
+    const questions = makeQuestions(7)
+    render(<Game seed={7} timeLimitSec={30} onFinish={onFinish} />)
+
+    for (const q of questions) {
+      answer(q.answer)
+    }
+    act(() => {
+      jest.advanceTimersByTime(60_000)
+    })
+
+    expect(onFinish).toHaveBeenCalledTimes(1)
+  })
+})
+```
+
+- [ ] **Step 2: 테스트 실행해서 실패 확인**
+
+Run: `npm test -- gugudan-ui` (in `client/`)
+Expected: FAIL — `Cannot find module '../gugudan'`
+
+- [ ] **Step 3: 최소 구현 작성**
+
+`client/src/games/gugudan/index.tsx`
+
+```tsx
+import { useEffect, useRef, useState } from 'react'
+import { StyleSheet, Text, TextInput, View } from 'react-native'
+import type { GameModule, GameProps } from '../types'
+import { makeQuestions, normalize, QUESTION_COUNT } from './logic'
+
+function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
+  const [questions] = useState(() => makeQuestions(seed))
+  const [index, setIndex] = useState(0)
+  const [input, setInput] = useState('')
+
+  const correctRef = useRef(0)
+  const startedAtRef = useRef(Date.now())
+  const finishedRef = useRef(false)
+  const onFinishRef = useRef(onFinish)
+  onFinishRef.current = onFinish
+
+  // 완주와 시간 만료가 겹쳐도 정확히 한 번만 부른다.
+  const finish = (completed: boolean) => {
+    if (finishedRef.current) return
+    finishedRef.current = true
+    onFinishRef.current({
+      normalizedScore: normalize(correctRef.current),
+      score: correctRef.current,
+      tiebreakMs: Date.now() - startedAtRef.current,
+      finished: completed,
+    })
+  }
+
+  // 제한시간이 끝나면 스스로 종료한다. 그때까지의 점수를 그대로 반환한다.
+  useEffect(() => {
+    const timer = setTimeout(() => finish(false), timeLimitSec * 1000)
+    return () => clearTimeout(timer)
+  }, [timeLimitSec])
+
+  const submit = () => {
+    if (finishedRef.current) return
+
+    const value = Number.parseInt(input, 10)
+    if (Number.isNaN(value)) return
+
+    if (value === questions[index].answer) {
+      correctRef.current += 1
+    }
+    setInput('')
+
+    const next = index + 1
+    if (next >= QUESTION_COUNT) {
+      finish(true)
+    } else {
+      setIndex(next)
+    }
+  }
+
+  const question = questions[index]
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.progress} testID="progress">
+        {index + 1} / {QUESTION_COUNT}
+      </Text>
+      <Text style={styles.question} testID="question">
+        {`${question.a} × ${question.b}`}
+      </Text>
+      <TextInput
+        testID="answer-input"
+        style={styles.input}
+        value={input}
+        onChangeText={setInput}
+        onSubmitEditing={submit}
+        keyboardType="number-pad"
+        autoFocus
+        blurOnSubmit={false}
+      />
+    </View>
+  )
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24 },
+  progress: { fontSize: 16, opacity: 0.6 },
+  question: { fontSize: 48, fontWeight: '700' },
+  input: {
+    fontSize: 32,
+    textAlign: 'center',
+    minWidth: 160,
+    borderBottomWidth: 2,
+    paddingVertical: 8,
+  },
+})
+
+export const gugudan: GameModule = {
+  info: {
+    id: 'gugudan',
+    name: '구구단 스피드전',
+    emoji: '✖️',
+    desc: '제한시간 안에 몇 문제나 맞힐 수 있나',
+    timeLimitSec: 30,
+  },
+  Component: GugudanGame,
+}
+```
+
+- [ ] **Step 4: 테스트 실행해서 통과 확인**
+
+Run: `npm test -- gugudan-ui` (in `client/`)
+Expected: PASS — 7 tests passed
+
+- [ ] **Step 5: 커밋**
+
+```bash
+cd ..
+git add client/src/games/gugudan/index.tsx client/src/games/__tests__/gugudan-ui.test.tsx
+git commit -m "feat: 구구단 스피드전 화면"
+```
+
+---
+
+### Task 6: 게임 레지스트리와 시드 기반 추첨
+
+**Files:**
+- Create: `client/src/games/registry.ts`
+- Test: `client/src/games/__tests__/registry.test.ts`
+
+**Interfaces:**
+- Consumes: `GameModule` (Task 3), `createRng` (Task 2), `gugudan` (Task 5)
+- Produces:
+  - `GAMES: readonly GameModule[]` — 등록된 게임 전체
+  - `getGame(id: string): GameModule` — 없으면 throw
+  - `pickGames(sessionSeed: number, count: number): GameModule[]` — 시드로 중복 없이 추첨
+
+`GAMES` 배열이 **게임 담당자들의 유일한 공유 지점**이다. 각자 자기 모듈을 import 해서 한 줄 추가하면 끝난다.
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`client/src/games/__tests__/registry.test.ts`
+
+```ts
+import { GAMES, getGame, pickGames } from '../registry'
+
+describe('GAMES', () => {
+  it('최소 한 개 이상 등록돼 있다', () => {
+    expect(GAMES.length).toBeGreaterThan(0)
+  })
+
+  it('id가 중복되지 않는다', () => {
+    const ids = GAMES.map((g) => g.info.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('모든 게임이 필수 정보를 갖는다', () => {
+    for (const g of GAMES) {
+      expect(g.info.id).toBeTruthy()
+      expect(g.info.name).toBeTruthy()
+      expect(g.info.emoji).toBeTruthy()
+      expect(g.info.timeLimitSec).toBeGreaterThan(0)
+      expect(g.Component).toBeDefined()
+    }
+  })
+})
+
+describe('getGame', () => {
+  it('등록된 게임을 찾는다', () => {
+    expect(getGame('gugudan').info.id).toBe('gugudan')
+  })
+
+  it('없는 id면 에러를 던진다', () => {
+    expect(() => getGame('nope')).toThrow('nope')
+  })
+})
+
+describe('pickGames', () => {
+  it('요청한 개수만큼 뽑는다', () => {
+    expect(pickGames(123, 1)).toHaveLength(1)
+  })
+
+  it('같은 시드는 같은 게임을 같은 순서로 뽑는다', () => {
+    const a = pickGames(4242, 1).map((g) => g.info.id)
+    const b = pickGames(4242, 1).map((g) => g.info.id)
+    expect(a).toEqual(b)
+  })
+
+  it('한 세션 안에서 같은 게임이 두 번 나오지 않는다', () => {
+    const count = Math.min(3, GAMES.length)
+    const ids = pickGames(999, count).map((g) => g.info.id)
+    expect(new Set(ids).size).toBe(count)
+  })
+
+  it('풀보다 많이 요청하면 에러를 던진다', () => {
+    expect(() => pickGames(1, GAMES.length + 1)).toThrow()
+  })
+})
+```
+
+- [ ] **Step 2: 테스트 실행해서 실패 확인**
+
+Run: `npm test -- registry` (in `client/`)
+Expected: FAIL — `Cannot find module '../registry'`
+
+- [ ] **Step 3: 최소 구현 작성**
+
+`client/src/games/registry.ts`
+
+```ts
+import { createRng } from './prng'
+import type { GameModule } from './types'
+import { gugudan } from './gugudan'
+
+/**
+ * 등록된 미니게임 전체.
+ *
+ * 새 게임을 추가하려면 import 한 줄과 아래 배열에 한 줄만 넣으면 된다.
+ * 이 파일이 게임 담당자들의 유일한 공유 지점이다.
+ */
+export const GAMES: readonly GameModule[] = [gugudan]
+
+export function getGame(id: string): GameModule {
+  const found = GAMES.find((g) => g.info.id === id)
+  if (!found) {
+    throw new Error(`등록되지 않은 게임입니다: ${id}`)
+  }
+  return found
+}
+
+/**
+ * 세션 시드로 게임을 중복 없이 추첨한다.
+ *
+ * 서버는 시드만 내려주고 추첨은 각 폰이 계산한다.
+ * 시드가 같으므로 전원이 같은 결과를 얻는다.
+ */
+export function pickGames(sessionSeed: number, count: number): GameModule[] {
+  if (count > GAMES.length) {
+    throw new Error(`게임이 ${GAMES.length}개뿐인데 ${count}개를 요청했습니다.`)
+  }
+  return createRng(sessionSeed).shuffle(GAMES).slice(0, count)
+}
+```
+
+- [ ] **Step 4: 테스트 실행해서 통과 확인**
+
+Run: `npm test -- registry` (in `client/`)
+Expected: PASS — 9 tests passed
+
+- [ ] **Step 5: 전체 스위트 확인**
+
+이 태스크가 마지막 코드 태스크다. 여기서 전부 초록이어야 한다.
+
+Run: `npm test` (in `client/`)
+Expected: PASS — 51 tests (smoke 1 + prng 13 + types 11 + gugudan-logic 10 + gugudan-ui 7 + registry 9)
+
+- [ ] **Step 6: 커밋**
+
+```bash
+cd ..
+git add client/src/games/registry.ts client/src/games/__tests__/registry.test.ts
+git commit -m "feat: 게임 레지스트리와 시드 기반 추첨"
+```
+
+---
+
+### Task 7: 게임 개발자 가이드
+
+담당자 9명에게 배포할 문서다. **이 문서 하나로 착수할 수 있어야 한다.**
+
+**Files:**
+- Create: `게임개발가이드.md`
+- Modify: `집가_설계정리.md` (§4에 가이드 링크 추가)
+
+**Interfaces:**
+- Consumes: Task 2~6의 모든 공개 인터페이스
+- Produces: 문서. 코드 산출물 없음
+
+- [ ] **Step 1: 가이드 문서 작성**
+
+`게임개발가이드.md`
+
+````markdown
+# 집 가 — 미니게임 개발 가이드
+
+> 미니게임 하나를 맡은 사람이 읽는 문서. 이것만 보고 시작할 수 있게 쓴다.
+
+## 한 줄 요약
+
+**혼자 하는 미니게임 하나를 만들면 된다.** 서버도, 다른 플레이어도, 네트워크도 신경 쓰지 않는다.
+
+## 시작하기
+
+```bash
+cd client
+npm install
+npm test
+```
+
+참조 구현은 `src/games/gugudan/`이다. **먼저 이걸 읽고 그대로 따라 하면 된다.**
+
+## 만들 것
+
+`src/games/<내-게임-id>/` 폴더 하나에 두 파일을 만든다.
+
+| 파일 | 역할 |
+|---|---|
+| `logic.ts` | 순수 함수. 문제 생성, 채점, 정규화 |
+| `index.tsx` | 화면. `GameModule`을 export |
+
+로직과 화면을 나누는 이유는 **공정성 검증을 UI 없이 빠르게 돌리기 위해서**다.
+
+## 받는 값
+
+```ts
+seed          : number   // 랜덤 시드. 모든 플레이어가 같은 값을 받는다
+timeLimitSec  : number   // 이 판의 제한시간
+onFinish      : (result: GameResult) => void
+```
+
+## 돌려주는 값
+
+```ts
+normalizedScore : number   // 0~100. 항상 높을수록 좋음
+score           : number   // 원점수. 화면 표시 전용
+tiebreakMs      : number   // 걸린 시간(ms)
+finished        : boolean  // 완주 여부
+```
+
+## 규칙 다섯 가지
+
+### 1. `Math.random()`을 쓰지 않는다
+
+무조건 `createRng(seed)`를 쓴다.
+
+```ts
+import { createRng } from '../prng'
+
+const rng = createRng(seed)
+const value = rng.int(2, 9)          // 2~9 정수
+const shuffled = rng.shuffle(cards)  // 섞은 새 배열
+```
+
+폰마다 다른 문제가 나오면 **"쟤는 쉬운 거 나왔다"**는 분쟁이 생긴다. 이 앱에서 제일 중요한 규칙이다.
+
+### 2. `normalizedScore`는 0~100이고 높을수록 좋다
+
+| 게임 유형 | 매핑 |
+|---|---|
+| 개수형 (구구단 20문제) | `맞힌 수 / 전체 수 × 100` |
+| 시간형 (빨리 끝낼수록 좋음) | 목표 시간을 잡고 `목표 / 걸린시간 × 100` |
+| 실패형 (실수 횟수) | `(1 − 실수/허용치) × 100` |
+
+마지막에 반드시 `Math.min(100, Math.max(0, x))`로 자른다.
+
+> **"잘하는 사람이 대략 100, 전혀 못 한 사람이 대략 0"**이 되도록 맞춘다. 기준선은 앱 전역에서 40점 하나뿐이라, 밸런스가 어긋나면 기준선이 아니라 **이 식을 고친다.**
+
+### 3. 제한시간이 끝나면 스스로 종료한다
+
+```ts
+useEffect(() => {
+  const timer = setTimeout(() => finish(false), timeLimitSec * 1000)
+  return () => clearTimeout(timer)
+}, [timeLimitSec])
+```
+
+### 4. 시간 초과여도 그때까지의 점수를 반환한다
+
+**0점으로 처리하면 안 된다.** 3판 평균이 40점 미만이면 그 사람은 집에 가야 하므로, 부당한 0점은 억울한 강퇴가 된다.
+
+### 5. `onFinish`는 정확히 한 번만 부른다
+
+완주와 시간 만료가 겹치면 중복 호출이 난다. `useRef` 플래그로 막는다.
+
+```ts
+const finishedRef = useRef(false)
+
+const finish = (completed: boolean) => {
+  if (finishedRef.current) return
+  finishedRef.current = true
+  onFinish({ /* ... */ })
+}
+```
+
+## 등록하기
+
+`src/games/registry.ts`에 두 줄만 추가한다. **여기가 유일한 공유 지점이다.**
+
+```ts
+import { myGame } from './my-game'
+
+export const GAMES: readonly GameModule[] = [gugudan, myGame]
+```
+
+## 제출 전 체크리스트
+
+- [ ] 모든 무작위 요소를 `seed`에서 파생시켰는가
+- [ ] `normalizedScore`가 0~100 범위이고, 높을수록 좋은 방향인가
+- [ ] 시간·실패 기반 게임이라면 뒤집어서 반환했는가
+- [ ] 제한시간이 끝나면 스스로 종료하고 점수를 반환하는가
+- [ ] 시간 초과 시에도 그때까지의 점수를 반환하는가 (0점 처리 금지)
+- [ ] `onFinish`를 정확히 한 번만 부르는가
+- [ ] 네트워크 코드가 없는가
+- [ ] `registry.ts`에 등록했는가
+
+## 반드시 써야 할 테스트
+
+참조 구현의 `src/games/__tests__/gugudan-logic.test.ts`를 그대로 베껴서 자기 게임에 맞게 고친다. 최소 이 세 가지는 있어야 한다.
+
+```ts
+it('같은 시드는 완전히 같은 문제를 만든다', () => {
+  expect(makeQuestions(31337)).toEqual(makeQuestions(31337))
+})
+
+it('다른 시드는 다른 문제를 만든다', () => {
+  expect(makeQuestions(1)).not.toEqual(makeQuestions(2))
+})
+
+it('시간 초과여도 그때까지 맞힌 점수를 반환한다', () => {
+  // gugudan-ui.test.tsx 참고
+})
+```
+
+## 게임 성격에 대한 제약
+
+**밀리초 단위 실시간 판정이 필요한 게임은 만들지 않는다.** 각 폰이 독립 실행하므로 반응속도 대결 같은 건 공정하게 겨룰 수 없다. 전부 "느긋한" 성격이어야 한다.
+````
+
+- [ ] **Step 2: 설계 정리에 링크 추가**
+
+`집가_설계정리.md`의 `## 4. 게임 모듈 규격 ★` 바로 아래 인용 블록 끝에 다음 줄을 추가한다.
+
+```markdown
+> 실제로 게임을 만드는 사람은 [미니게임 개발 가이드](게임개발가이드.md)를 본다.
+```
+
+- [ ] **Step 3: 문서 링크 확인**
+
+Run: 에디터에서 `게임개발가이드.md`와 `집가_설계정리.md`를 열어 상대 경로 링크가 깨지지 않는지 확인
+Expected: 두 문서가 서로 연결됨
+
+- [ ] **Step 4: 커밋**
+
+```bash
+git add 게임개발가이드.md 집가_설계정리.md
+git commit -m "docs: 미니게임 개발 가이드"
+```
+
+---
+
+## 완료 조건
+
+- [ ] `cd client && npm test` — 전체 통과 (51 tests)
+- [ ] `게임개발가이드.md`만 읽고 새 게임을 시작할 수 있다
+- [ ] 새 게임 추가 시 건드리는 공유 파일이 `registry.ts` 하나뿐이다
+
+## 이 계획이 다루지 않는 것
+
+- **게임 호스트 화면 (`S6`)** — P4 세션 루프에서 만든다. `validateGameResult`를 개발 모드에서 호출하는 것도 그쪽이다
+- **나머지 게임 9개** — P6. 이 계획이 끝나야 병렬 착수가 가능하다
+- **Supabase 연동** — P1·P3. 게임은 서버를 모른다

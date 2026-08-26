@@ -63,8 +63,15 @@ export async function listAllRoomPlayersEver(roomId: string): Promise<Array<{ id
 }
 
 /**
- * 입장·퇴장이 생기거나(players 변화) 방장이 바뀌면(rooms.host_player_id 변화)
- * 목록을 다시 읽어 콜백으로 넘긴다. 반환값을 호출하면 구독을 해제한다.
+ * 입장·퇴장이 생길 때마다(players 변화) 목록을 다시 읽어 콜백으로 넘긴다.
+ * 반환값을 호출하면 구독을 해제한다.
+ *
+ * ⚠️ rooms 테이블은 여기서 구독하지 않는다 — rooms는 supabase_realtime publication에
+ * 없어서(20260825033434_realtime.sql) 그 UPDATE는 애초에 전달되지 않을 뿐 아니라,
+ * 같은 채널에 발행 안 된 테이블 리스너를 같이 걸면 채널 전체(players 리스너까지)가
+ * 조용히 죽어버린다 — 실제로 재현·확인했다. 다행히 방장이 바뀌는 모든 경로
+ * (_remove_player·rejoin_room)는 항상 players 행도 같이 바꾸므로, players만 구독해도
+ * host_player_id 변화(listPlayers 안의 fetchHostPlayerId)를 놓치지 않는다.
  */
 export function subscribeToPlayers(roomId: string, onChange: (players: LobbyPlayer[]) => void): () => void {
   const refresh = () => {
@@ -74,7 +81,6 @@ export function subscribeToPlayers(roomId: string, onChange: (players: LobbyPlay
   let channel: RealtimeChannel | null = supabase
     .channel(`room-players:${roomId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` }, refresh)
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, refresh)
     .subscribe()
 
   return () => {
