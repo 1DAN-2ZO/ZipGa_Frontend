@@ -4,7 +4,6 @@ import {
   openKakaoTaxi,
   PLAY_STORE,
   storeUrl,
-  type WebDeps,
 } from '../kakaoTaxi'
 
 /** 네이티브용 가짜. fail에 든 URL은 열지 못한 것으로 친다. */
@@ -18,44 +17,6 @@ function fakeOpener(fail: string[] = []) {
       return true
     },
   }
-}
-
-/**
- * 웹용 가짜 브라우저.
- *
- * navigate가 불리면 어디로 갔는지 기록하고, appOpens가 true면
- * "앱이 열려 페이지가 숨겨졌다"를 흉내 낸다.
- */
-function fakeBrowser({ appOpens }: { appOpens: boolean }) {
-  const navigated: string[] = []
-  let hidden = false
-  let listener: (() => void) | null = null
-  let timer: (() => void) | null = null
-
-  const web: WebDeps = {
-    navigate: (url) => {
-      navigated.push(url)
-      if (appOpens) {
-        hidden = true
-        listener?.()
-      }
-    },
-    isHidden: () => hidden,
-    onVisibilityChange: (cb) => {
-      listener = cb
-      return () => {
-        listener = null
-      }
-    },
-    delay: (_ms, cb) => {
-      timer = cb
-      return () => {
-        timer = null
-      }
-    },
-  }
-
-  return { web, navigated, fireTimeout: () => timer?.(), hasTimer: () => timer !== null }
 }
 
 describe('상수', () => {
@@ -117,45 +78,32 @@ describe('openKakaoTaxi — 네이티브', () => {
 })
 
 describe('openKakaoTaxi — 웹', () => {
+  /** navigate만 기록하는 가짜. 웹에는 판정할 신호가 없으므로 이게 전부다. */
+  function fakeNavigator() {
+    const navigated: string[] = []
+    return { navigated, navigate: (url: string) => navigated.push(url) }
+  }
+
   it('새 탭이 아니라 현재 탭에서 스킴을 연다', async () => {
     // window.open으로 열면 팝업 차단에 걸리거나 빈 탭만 뜬다.
-    const browser = fakeBrowser({ appOpens: true })
-    await openKakaoTaxi({ platform: 'web', web: browser.web })
-    expect(browser.navigated).toEqual([KAKAO_T_SCHEME])
+    const nav = fakeNavigator()
+    await openKakaoTaxi({ platform: 'web', navigate: nav.navigate })
+    expect(nav.navigated).toEqual([KAKAO_T_SCHEME])
   })
 
-  it('페이지가 숨겨지면 열린 것으로 본다', async () => {
-    const browser = fakeBrowser({ appOpens: true })
-    await expect(openKakaoTaxi({ platform: 'web', web: browser.web })).resolves.toBe('opened')
+  it('성공 여부를 판정하지 않고 unknown을 돌려준다', async () => {
+    // 브라우저는 앱이 열렸는지 알려주지 않는다. 추측하는 대신 모른다고 한다.
+    const nav = fakeNavigator()
+    await expect(
+      openKakaoTaxi({ platform: 'web', navigate: nav.navigate }),
+    ).resolves.toBe('unknown')
   })
 
-  it('시간이 지나도 그대로면 열리지 않은 것으로 본다', async () => {
-    const browser = fakeBrowser({ appOpens: false })
-    const promise = openKakaoTaxi({ platform: 'web', web: browser.web })
-    browser.fireTimeout()
-    await expect(promise).resolves.toBe('failed')
-  })
-
-  it('실패해도 스토어로 자동 이동시키지 않는다', async () => {
-    // 현재 탭을 덮으면 앱이 통째로 사라진다. 화면의 수동 탈출구로 넘긴다.
-    const browser = fakeBrowser({ appOpens: false })
-    const promise = openKakaoTaxi({ platform: 'web', web: browser.web })
-    browser.fireTimeout()
-    await promise
-    expect(browser.navigated).toEqual([KAKAO_T_SCHEME])
-  })
-
-  it('열린 것으로 판정되면 타이머를 정리한다', async () => {
-    const browser = fakeBrowser({ appOpens: true })
-    await openKakaoTaxi({ platform: 'web', web: browser.web })
-    expect(browser.hasTimer()).toBe(false)
-  })
-
-  it('타이머가 먼저 터진 뒤 페이지가 숨겨져도 결과가 안 바뀐다', async () => {
-    const browser = fakeBrowser({ appOpens: false })
-    const promise = openKakaoTaxi({ platform: 'web', web: browser.web })
-    browser.fireTimeout()
-    browser.fireTimeout()
-    await expect(promise).resolves.toBe('failed')
+  it('스토어로 자동 이동시키지 않는다', async () => {
+    // 현재 탭을 덮으면 앱이 통째로 사라진다. 화면의 설치 안내로 넘긴다.
+    const nav = fakeNavigator()
+    await openKakaoTaxi({ platform: 'web', navigate: nav.navigate })
+    expect(nav.navigated).toHaveLength(1)
+    expect(nav.navigated[0]).not.toContain('store')
   })
 })
