@@ -31,6 +31,8 @@ export interface UseSessionDeps {
 
 export interface SessionHandle {
   state: SessionState | null
+  /** 지금 세션의 id. 판별 점수 조회(scores 테이블 질의) 등에 쓴다 */
+  sessionId: string | null
   verdict: SessionVerdict[] | null
   /** 보정된 서버 시각 기준의 시작 시각(ms) */
   startsAtMs: number | null
@@ -49,6 +51,7 @@ function reducer(state: SessionState | null, event: InternalEvent): SessionState
 
 export function useSession(deps: UseSessionDeps): SessionHandle {
   const [state, dispatch] = useReducer(reducer, null)
+  const [sessionId, setSessionId] = useState<string | null>(null)
   const [verdict, setVerdict] = useState<SessionVerdict[] | null>(null)
   const [startsAtMs, setStartsAtMs] = useState<number | null>(null)
   const [error, setError] = useState<SessionErrorCode | null>(null)
@@ -62,6 +65,7 @@ export function useSession(deps: UseSessionDeps): SessionHandle {
       sessionIdRef.current = row.session_id
       submittedRef.current = new Set()
       endedRef.current = false
+      setSessionId(row.session_id)
       setVerdict(null)
       setError(null)
       setStartsAtMs(Date.parse(row.starts_at))
@@ -114,5 +118,5 @@ export function useSession(deps: UseSessionDeps): SessionHandle {
       .catch((e) => setError(e instanceof SessionError ? e.code : 'UNKNOWN'))
   }, [state, deps.client])
 
-  return { state, verdict, startsAtMs, error, start, advance }
+  return { state, sessionId, verdict, startsAtMs, error, start, advance }
 }
