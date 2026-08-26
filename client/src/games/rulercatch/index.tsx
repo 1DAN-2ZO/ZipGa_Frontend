@@ -303,7 +303,9 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
         <View style={[st.caret, { left: `${(roundIdx + 0.5) * slotW * 100}%` }]} />
       </View>
 
-      <View style={st.stage} onLayout={(e) => setStageH(e.nativeEvent.layout.height)}>
+      {/* testID: 무대 높이를 받기 전에는 라운드가 시작되지 않는다. 테스트에서
+          onLayout을 쏘려면 이 View를 집을 수 있어야 한다 */}
+      <View testID="stage" style={st.stage} onLayout={(e) => setStageH(e.nativeEvent.layout.height)}>
         <View style={[st.bar, st.barTop]} />
         {stageH > 0 && (
           <Animated.View
