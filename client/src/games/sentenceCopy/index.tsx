@@ -132,7 +132,14 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
         autoFocus
         autoCorrect={false}
         autoCapitalize="none"
+        // 한 판에 여러 문장을 연속으로 치는 게임이라 제출할 때마다 키보드가
+        // 내려가면 안 된다. 두 속성을 다 주는 이유:
+        //   네이티브 — submitBehavior가 blurOnSubmit을 덮어쓴다
+        //   웹      — react-native-web은 submitBehavior를 모른다. 레거시
+        //             blurOnSubmit만 보고, 단일행 기본값이 true라
+        //             Enter 때 hostNode.blur()를 직접 부른다
         submitBehavior="submit"
+        blurOnSubmit={false}
         editable={!isOver}
         returnKeyType="send"
       />
