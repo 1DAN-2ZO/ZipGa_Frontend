@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types'
 import { COLORS } from '../../theme'
 import { buildSpawns, HOLE_COUNT, MOLE_COUNT, netScore, normalize } from './logic'
@@ -13,6 +14,7 @@ const BLAST_MS = 350
 function WhackAMoleGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const durationMs = timeLimitSec * 1000
 
+  const sound = useGameSound()
   const [spawns] = useState(() => buildSpawns(seed, durationMs))
   const [elapsedMs, setElapsedMs] = useState(0)
   const [blastAtMs, setBlastAtMs] = useState<number | null>(null)
@@ -84,7 +86,12 @@ function WhackAMoleGame({ seed, timeLimitSec, onFinish }: GameProps) {
 
     struckRef.current.add(index)
     const now = Date.now() - startedAtRef.current
-    if (spawns[index].kind === 'bomb') setBlastAtMs(now)
+    if (spawns[index].kind === 'bomb') {
+      setBlastAtMs(now)
+      sound.penalty()
+    } else {
+      sound.hit()
+    }
     setElapsedMs(now)
   }
 
