@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import React from 'react'
+import { Keyboard } from 'react-native'
 import { sentenceCopy } from '../sentenceCopy'
 import { buildSequence } from '../sentenceCopy/logic'
 import { SENTENCES } from '../sentenceCopy/sentences'
@@ -230,5 +231,122 @@ describe('제출 후 포커스 유지', () => {
     // 다음 문장으로 넘어갔고, 입력창은 여전히 칠 수 있는 상태다
     expect(input.props.editable).toBe(true)
     expect(input.props.value).toBe('')
+  })
+})
+
+/**
+ * 폰에서 키보드가 올라오면 화면 높이가 절반 가까이 줄어든다.
+ * 예전에는 stage가 justifyContent:'center'인 View라 문장이 위아래로 넘쳐
+ * 윗줄이 잘려 나갔다 — 따라 쓸 문장을 읽을 수 없으니 게임이 성립하지 않는다.
+ */
+describe('키보드가 올라왔을 때', () => {
+  // RN의 Keyboard에는 테스트에서 이벤트를 쏘는 공개 수단이 없다.
+  // addListener를 가로채 콜백을 붙잡아 뒀다가 직접 부른다.
+  let listeners: Record<string, Array<() => void>> = {}
+
+  beforeEach(() => {
+    listeners = {}
+    jest.spyOn(Keyboard, 'addListener').mockImplementation(((event: string, cb: () => void) => {
+      ;(listeners[event] ??= []).push(cb)
+      return { remove: () => {} }
+    }) as unknown as typeof Keyboard.addListener)
+  })
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  const fire = async (event: string) => {
+    await act(async () => {
+      listeners[event]?.forEach((cb) => cb())
+    })
+  }
+  const showKeyboard = () => fire('keyboardDidShow')
+  const hideKeyboard = () => fire('keyboardDidHide')
+
+  it('예시 문장은 그대로 남는다', async () => {
+    const seed = 20260826
+    await renderGame(seed)
+    const [first] = sequenceFor(seed)
+
+    await showKeyboard()
+
+    expect(screen.getByTestId('current-sentence')).toHaveTextContent(first)
+  })
+
+  it('자리를 벌기 위해 주변 요소를 접는다', async () => {
+    await renderGame(20260826)
+
+    // 키보드가 없을 때는 라벨과 안내가 다 보인다
+    expect(screen.queryByText('이 문장을 똑같이')).not.toBeNull()
+    expect(screen.queryByText('맞춘 개수')).not.toBeNull()
+    expect(screen.queryByText('띄어쓰기·문장부호까지 똑같이')).not.toBeNull()
+
+    await showKeyboard()
+
+    // 문장에 자리를 내주기 위해 접힌다
+    expect(screen.queryByText('이 문장을 똑같이')).toBeNull()
+    expect(screen.queryByText('맞춘 개수')).toBeNull()
+    expect(screen.queryByText('띄어쓰기·문장부호까지 똑같이')).toBeNull()
+
+    // 점수와 남은 시간 자체는 계속 보인다
+    expect(screen.queryByTestId('correct-count')).not.toBeNull()
+    expect(screen.queryByTestId('time-left')).not.toBeNull()
+  })
+
+  it('틀렸다는 신호는 키보드가 올라와 있어도 남긴다', async () => {
+    await renderGame(20260826)
+    await showKeyboard()
+
+    await typeAndSubmit('이건 분명히 틀린 문장이다')
+
+    expect(screen.queryByText('다시! 한 글자도 틀리면 안 돼')).not.toBeNull()
+  })
+
+  it('키보드가 내려가면 원래대로 돌아온다', async () => {
+    await renderGame(20260826)
+    await showKeyboard()
+    await hideKeyboard()
+
+    expect(screen.queryByText('이 문장을 똑같이')).not.toBeNull()
+    expect(screen.queryByText('맞춘 개수')).not.toBeNull()
+  })
+})
+
+/**
+ * 웹(react-native-web)에서는 Keyboard.addListener가 빈 스텁이라 이벤트가
+ * 아예 오지 않는다. Android 네이티브도 창이 resize될 뿐이다.
+ * 그래서 이벤트와 별개로 "남은 높이"만으로도 축소본이 켜져야 한다.
+ */
+describe('남은 높이가 좁을 때 (웹·Android)', () => {
+  const layout = async (height: number) => {
+    await act(async () => {
+      fireEvent(screen.getByTestId('game-root'), 'layout', {
+        nativeEvent: { layout: { width: 390, height } },
+      })
+    })
+  }
+
+  it('키보드 이벤트 없이 높이만으로 축소본이 켜진다', async () => {
+    const seed = 20260826
+    await renderGame(seed)
+    const [first] = sequenceFor(seed)
+
+    // 키보드가 올라온 폰에 남는 높이
+    await layout(400)
+
+    expect(screen.queryByText('이 문장을 똑같이')).toBeNull()
+    expect(screen.queryByText('맞춘 개수')).toBeNull()
+    // 정작 중요한 문장은 그대로 남는다
+    expect(screen.getByTestId('current-sentence')).toHaveTextContent(first)
+  })
+
+  it('키보드가 없는 온전한 높이에서는 축소하지 않는다', async () => {
+    await renderGame(20260826)
+
+    await layout(844)
+
+    expect(screen.queryByText('이 문장을 똑같이')).not.toBeNull()
+    expect(screen.queryByText('맞춘 개수')).not.toBeNull()
   })
 })
