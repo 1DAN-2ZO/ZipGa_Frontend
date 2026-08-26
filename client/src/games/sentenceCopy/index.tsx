@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { StyleSheet, Text, TextInput, View } from 'react-native'
 import { COLORS } from '../../theme'
+import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types'
 import { buildSequence, computeResult, isExactMatch } from './logic'
 import { SENTENCES } from './sentences'
@@ -12,6 +13,7 @@ import { SENTENCES } from './sentences'
  * 제한시간이 끝나면 스스로 종료하고 결과를 반환한다 — 네트워크 코드는 없다(설계 §3.7).
  */
 function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
+  const sound = useGameSound()
   const sequence = useMemo(() => buildSequence(seed, SENTENCES), [seed])
 
   const [index, setIndex] = useState(0)
@@ -73,10 +75,12 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
     if (isOver || finishedRef.current) return
 
     if (!isExactMatch(input, currentSentence)) {
+      sound.miss()
       setIsWrong(true)
       return
     }
 
+    sound.hit()
     lastCorrectElapsedMsRef.current = Date.now() - startedAtRef.current
     correctCountRef.current += 1
     setCorrectCount(correctCountRef.current)

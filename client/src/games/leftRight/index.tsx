@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { COLORS } from '../../theme'
+import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types'
 import { Backdrop } from './Backdrop'
 import { Cat } from './Cat'
@@ -52,6 +53,7 @@ function TimerBar({ ratio }: { ratio: number }) {
  * 제한시간이 끝나면 스스로 종료한다 — 네트워크 코드는 없다(설계 §3.7).
  */
 function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
+  const sound = useGameSound()
   // 시작할 때 줄을 통째로 확정한다. 조작이 빠르든 느리든 모두 같은 순서를 본다.
   const cats = useMemo(() => makeCats(seed, CAT_QUEUE_LENGTH), [seed])
 
@@ -120,6 +122,7 @@ function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
 
     if (side !== sideOf(color)) {
       // 틀렸다. 점수를 깎고 이 고양이는 넘긴다. 잠금은 난타를 막는 별개 장치다.
+      sound.penalty()
       netScoreRef.current -= WRONG_PENALTY
       setNetScore(netScoreRef.current)
       lockedUntilRef.current = Date.now() + WRONG_LOCK_MS
@@ -129,6 +132,7 @@ function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
       return
     }
 
+    sound.hit()
     lastCorrectElapsedMsRef.current = Date.now() - startedAtRef.current
     netScoreRef.current += 1
     setNetScore(netScoreRef.current)

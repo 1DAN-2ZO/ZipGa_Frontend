@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types';
 import { COLORS } from '../../theme';
 import {
@@ -78,6 +79,7 @@ function Outlined({ text, size, color }: { text: string; size: number; color?: s
 }
 
 function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
+  const sound = useGameSound()
   const limitMs = timeLimitSec * 1000;
   const waits = useMemo(() => makeWaits(seed), [seed]);
 
@@ -169,6 +171,9 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
     if (kind === 'caught') pos.setValue(rulerY(cm));
 
     setBig(String(Math.round(running(roundsRef.current))));
+    if (kind === 'caught') sound.hit();
+    else sound.miss();
+
     if (kind === 'caught') {
       setSub('좋아요!');
       setReadout({ text: `${cm.toFixed(2)}cm`, bad: false });
