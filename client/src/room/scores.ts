@@ -1,5 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { ROUNDS_PER_SESSION } from '../games/types'
 
 export interface RoundScoreRow {
   playerId: string
@@ -71,4 +72,74 @@ export function subscribeToRoundScores(
     channel?.unsubscribe()
     channel = null
   }
+}
+
+/** sessionId에서 아직 3판을 다 못 낸 참가자 수. 세션 종료(판정) 시점을 늦출지
+ * 결정하는 데만 쓴다 — 벌칙 판정 자체는 여전히 "3판 평균 < 40" 하나뿐이다. */
+async function countPendingSubmitters(sessionId: string, participantIds: readonly string[]): Promise<number> {
+  if (participantIds.length === 0) return 0
+
+  const { data, error } = await supabase.from('scores').select('player_id').eq('session_id', sessionId)
+  if (error) throw error
+
+  const submittedCount = new Map<string, number>()
+  for (const row of data as Array<{ player_id: string }>) {
+    submittedCount.set(row.player_id, (submittedCount.get(row.player_id) ?? 0) + 1)
+  }
+
+  return participantIds.filter((id) => (submittedCount.get(id) ?? 0) < ROUNDS_PER_SESSION).length
+}
+
+/** 종합 판정(end_session) 전에 뒤처진 참가자를 최대 이만큼 기다려준다. */
+export const END_SESSION_WAIT_MS = 60_000
+
+/**
+ * 이 세션에 참여한 사람 전원이 3판을 다 낼 때까지(또는 timeoutMs가 지날 때까지)
+ * 기다린다. 정확히 언제 종합 판정(end_session)을 부를지를 늦추는 용도다.
+ *
+ * "느리게 진행된 플레이어를 강제로 강퇴하는 별도 규칙"이 아니다 — end_session이
+ * 부르는 시점만 조절할 뿐, 벌칙 판정은 여전히 "3판 평균 < 40" 하나로만 갈린다.
+ * 아무도 안 늦었으면(이미 전원 제출 완료) 즉시 반환해 지연이 없다.
+ */
+export function waitForAllScores(
+  sessionId: string,
+  participantIds: readonly string[],
+  timeoutMs: number = END_SESSION_WAIT_MS,
+): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false
+    let channel: RealtimeChannel | null = null
+
+    const finish = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      channel?.unsubscribe()
+      channel = null
+      resolve()
+    }
+
+    const timer = setTimeout(finish, timeoutMs)
+
+    const check = () => {
+      countPendingSubmitters(sessionId, participantIds)
+        .then((pending) => {
+          if (pending === 0) finish()
+        })
+        .catch(() => {
+          // 조회 실패는 무시한다 — timeoutMs가 최종 방어선이다.
+        })
+    }
+
+    channel = supabase
+      .channel(`session-wait:${sessionId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'scores', filter: `session_id=eq.${sessionId}` },
+        check,
+      )
+      .subscribe()
+
+    check() // 이미 전원 제출 완료된 상태일 수 있으니 최초 한 번 바로 확인한다
+  })
 }
