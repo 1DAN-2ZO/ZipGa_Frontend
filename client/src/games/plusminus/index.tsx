@@ -5,6 +5,7 @@ import {
   COUNTDOWN_MS,
   MAX_ANSWER_DIGITS,
   Question,
+  WRONG_CLEAR_MS,
   makeQuestions,
   normalize,
   questionText,
@@ -82,6 +83,7 @@ function PlusMinusGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const finishedRef = useRef(false);
   const inputRef = useRef<TextInput>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const wrongTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const later = useCallback((fn: () => void, ms: number) => {
@@ -97,6 +99,7 @@ function PlusMinusGame({ seed, timeLimitSec, onFinish }: GameProps) {
     setPhase('over');
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
+    wrongTimerRef.current = null;
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
     setLeft(0);
     inputRef.current?.blur();
@@ -113,6 +116,13 @@ function PlusMinusGame({ seed, timeLimitSec, onFinish }: GameProps) {
   /* ---------- 입력 ---------- */
   const onChange = useCallback((raw: string) => {
     if (finishedRef.current) return;
+
+    // 지우기 예약이 걸려 있으면 먼저 취소한다. 치는 도중에 입력이 사라지면 안 된다.
+    if (wrongTimerRef.current) {
+      clearTimeout(wrongTimerRef.current);
+      wrongTimerRef.current = null;
+    }
+
     const v = raw.replace(/[^0-9]/g, '').slice(0, MAX_ANSWER_DIGITS);
     const answer = questions[qIdxRef.current].answer;
 
@@ -126,7 +136,18 @@ function PlusMinusGame({ seed, timeLimitSec, onFinish }: GameProps) {
       return;
     }
     setInput(v);
-  }, [questions]);
+
+    /* 정답으로 이어질 수 없는 입력이면 잠깐 보여준 뒤 스스로 비운다.
+       그냥 두면 입력칸이 꽉 차서 그 문제를 영영 못 푼다.
+       (오타 한 번에 한 문제를 통째로 날리던 문제) */
+    if (typingState(v, answer) === 'wrong') {
+      wrongTimerRef.current = later(() => {
+        wrongTimerRef.current = null;
+        if (finishedRef.current) return;
+        setInput('');
+      }, WRONG_CLEAR_MS);
+    }
+  }, [questions, later]);
 
   /* ---------- 시작 / 정리 ---------- */
   useEffect(() => {
@@ -137,6 +158,7 @@ function PlusMinusGame({ seed, timeLimitSec, onFinish }: GameProps) {
     lastCorrectRef.current = null;
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
+    wrongTimerRef.current = null;
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
     setCorrect(0); setQIdx(0); setInput(''); setLeft(limitMs);
     setPhase('count');
