@@ -8,7 +8,7 @@
 
 **Tech Stack:** Expo (React Native) · TypeScript · Jest (`jest-expo`) · `@testing-library/react-native`
 
-**Spec:** `설계_파장흐름.md` (§3 게임 모듈 규격) · `집가_설계정리.md` §4
+**Spec:** `sessionEnd.md` (§3 게임 모듈 규격) · `zipGa.md` §4
 
 ## Global Constraints
 
@@ -42,7 +42,7 @@ client/                          ← Expo 프로젝트 (신규)
         gugudan-logic.test.ts
         gugudan-ui.test.tsx
 
-  게임개발가이드.md               ← 담당자 9명에게 배포할 문서 (신규)
+  gameDev.md               ← 담당자 9명에게 배포할 문서 (신규)
 ```
 
 책임 분리 기준: `logic.ts`(순수 함수)와 `index.tsx`(화면)를 나눈다. 공정성 검증은 전부 `logic.ts`에서 이뤄지므로 UI 없이 빠르게 테스트할 수 있고, 게임 담당자도 같은 패턴을 따르면 된다.
@@ -1066,8 +1066,8 @@ git commit -m "feat: 게임 레지스트리와 시드 기반 추첨"
 담당자 9명에게 배포할 문서다. **이 문서 하나로 착수할 수 있어야 한다.**
 
 **Files:**
-- Create: `게임개발가이드.md`
-- Modify: `집가_설계정리.md` (§4에 가이드 링크 추가)
+- Create: `gameDev.md`
+- Modify: `zipGa.md` (§4에 가이드 링크 추가)
 
 **Interfaces:**
 - Consumes: Task 2~6의 모든 공개 인터페이스
@@ -1075,7 +1075,7 @@ git commit -m "feat: 게임 레지스트리와 시드 기반 추첨"
 
 - [ ] **Step 1: 가이드 문서 작성**
 
-`게임개발가이드.md`
+`gameDev.md`
 
 ````markdown
 # 집 가 — 미니게임 개발 가이드
@@ -1225,21 +1225,21 @@ it('시간 초과여도 그때까지 맞힌 점수를 반환한다', () => {
 
 - [ ] **Step 2: 설계 정리에 링크 추가**
 
-`집가_설계정리.md`의 `## 4. 게임 모듈 규격 ★` 바로 아래 인용 블록 끝에 다음 줄을 추가한다.
+`zipGa.md`의 `## 4. 게임 모듈 규격 ★` 바로 아래 인용 블록 끝에 다음 줄을 추가한다.
 
 ```markdown
-> 실제로 게임을 만드는 사람은 [미니게임 개발 가이드](게임개발가이드.md)를 본다.
+> 실제로 게임을 만드는 사람은 [미니게임 개발 가이드](gameDev.md)를 본다.
 ```
 
 - [ ] **Step 3: 문서 링크 확인**
 
-Run: 에디터에서 `게임개발가이드.md`와 `집가_설계정리.md`를 열어 상대 경로 링크가 깨지지 않는지 확인
+Run: 에디터에서 `gameDev.md`와 `zipGa.md`를 열어 상대 경로 링크가 깨지지 않는지 확인
 Expected: 두 문서가 서로 연결됨
 
 - [ ] **Step 4: 커밋**
 
 ```bash
-git add 게임개발가이드.md 집가_설계정리.md
+git add gameDev.md zipGa.md
 git commit -m "docs: 미니게임 개발 가이드"
 ```
 
@@ -1248,7 +1248,7 @@ git commit -m "docs: 미니게임 개발 가이드"
 ## 완료 조건
 
 - [ ] `cd client && npm test` — 전체 통과 (51 tests)
-- [ ] `게임개발가이드.md`만 읽고 새 게임을 시작할 수 있다
+- [ ] `gameDev.md`만 읽고 새 게임을 시작할 수 있다
 - [ ] 새 게임 추가 시 건드리는 공유 파일이 `registry.ts` 하나뿐이다
 
 ## 이 계획이 다루지 않는 것
