@@ -1,6 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { LobbyPlayer } from '../screens/Lobby'
+import { getRoomStandings, type PlayerStanding } from './standings'
 
 interface PlayerRow {
   id: string
@@ -22,32 +23,50 @@ async function fetchHostPlayerId(roomId: string): Promise<string | null> {
 }
 
 /**
- * 방 참가자 목록.
+ * 방 참가자 목록. 아직 한 번도 세션을 안 뛴 사람은 avgScore 0으로 맨 뒤 쪽에 깔린다
+ * (standings.ts가 안 돌아본 세션은 애초에 데이터가 없으니 자연스럽게 0).
  *
- * 아직 세션이 한 번도 안 돌았을 수 있으므로 avgScore는 0, rank는 입장 순서로 둔다.
- * 실제 평균 점수·순위는 세션 엔진(P4)이 붙으면 scores 테이블에서 계산해 대체한다.
+ * 순위는 입장 순서가 아니라 실제 누적 평균 점수 내림차순이다 — 이게 이 목록의
+ * 존재 이유다. 방장 판단은 정렬과 무관하게 host_player_id로 따로 한다
+ * (host_player_id를 못 읽었을 때만 최초 입장자로 대체 — joined_seq 최솟값을 직접 찾는다,
+ * 정렬 순서에 기대지 않는다).
  */
-function toLobbyPlayers(rows: PlayerRow[], hostPlayerId: string | null): LobbyPlayer[] {
+function toLobbyPlayers(
+  rows: PlayerRow[],
+  hostPlayerId: string | null,
+  standings: Map<string, PlayerStanding>,
+): LobbyPlayer[] {
+  const earliestJoinedId = rows.reduce<PlayerRow | null>(
+    (earliest, row) => (earliest === null || row.joined_seq < earliest.joined_seq ? row : earliest),
+    null,
+  )?.id
+
   return [...rows]
-    .sort((a, b) => a.joined_seq - b.joined_seq)
+    .sort((a, b) => {
+      const scoreA = standings.get(a.id)?.avgScore ?? 0
+      const scoreB = standings.get(b.id)?.avgScore ?? 0
+      if (scoreB !== scoreA) return scoreB - scoreA
+      return a.joined_seq - b.joined_seq // 동점이면 입장 순서로 안정 정렬
+    })
     .map((row, index) => ({
       id: row.id,
       nickname: row.nickname,
-      // host_player_id를 못 읽었을 때만(드묾) 예전 방식(최초 입장자)으로 대체한다
-      isHost: hostPlayerId !== null ? row.id === hostPlayerId : index === 0,
-      avgScore: 0,
+      isHost: hostPlayerId !== null ? row.id === hostPlayerId : row.id === earliestJoinedId,
+      avgScore: standings.get(row.id)?.avgScore ?? 0,
       rank: index + 1,
+      previousRank: standings.get(row.id)?.previousRank,
     }))
 }
 
 export async function listPlayers(roomId: string): Promise<LobbyPlayer[]> {
-  const [{ data, error }, hostPlayerId] = await Promise.all([
+  const [{ data, error }, hostPlayerId, standings] = await Promise.all([
     supabase.from('players').select('id, nickname, joined_seq').eq('room_id', roomId).is('left_at', null),
     fetchHostPlayerId(roomId).catch(() => null),
+    getRoomStandings(roomId).catch(() => new Map<string, PlayerStanding>()),
   ])
 
   if (error) throw error
-  return toLobbyPlayers(data as PlayerRow[], hostPlayerId)
+  return toLobbyPlayers(data as PlayerRow[], hostPlayerId, standings)
 }
 
 /**

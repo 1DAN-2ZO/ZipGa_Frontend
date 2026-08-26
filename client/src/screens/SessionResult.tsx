@@ -144,8 +144,8 @@ function ResultRow({
         <Text style={[styles.name, penalized && styles.nameOnColor]}>{player.nickname}</Text>
       </View>
       <Text style={[styles.score, penalized && styles.scorePenalized]}>
-        {player.avgScore.toFixed(0)}{' '}
-        <Text style={[styles.pts, penalized && styles.ptsPenalized]}>pts</Text>
+        {player.avgScore.toFixed(0)}
+        <Text style={[styles.pts, penalized && styles.ptsPenalized]}>점</Text>
       </Text>
     </View>
   )

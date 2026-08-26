@@ -57,6 +57,9 @@ export function RoundResult({ sessionId, roundIndex, players, myPlayerId, gameNa
             <Text style={[styles.name, row.playerId === myPlayerId && styles.textOnColor]}>
               {nameOf(row.playerId)}
             </Text>
+            <Text style={[styles.score, row.playerId === myPlayerId && styles.textOnColor]}>
+              {row.normalized.toFixed(0)}점
+            </Text>
           </View>
         ))}
         {ranked.length === 0 && <Text style={styles.waiting}>제출 대기 중…</Text>}
@@ -108,9 +111,15 @@ const styles = StyleSheet.create({
     width: 24,
   },
   name: {
+    flex: 1,
     fontFamily: fonts.semibold,
     fontSize: 15,
     color: colors.textPrimary,
+  },
+  score: {
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    color: colors.primary,
   },
   textOnColor: {
     color: colors.white,

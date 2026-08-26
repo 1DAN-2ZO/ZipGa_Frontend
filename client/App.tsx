@@ -5,7 +5,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/quicksand'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Alert, Linking, Platform, View } from 'react-native'
 import { NicknameSheet } from './src/components/NicknameSheet'
 import { getGame } from './src/games/registry'
 import { ROUNDS_PER_SESSION, type GameResult } from './src/games/types'
@@ -44,7 +44,6 @@ import { RoomSetup } from './src/screens/RoomSetup'
 import { RoundResult } from './src/screens/RoundResult'
 import { SessionResult, type ResultPlayer } from './src/screens/SessionResult'
 import { Settings } from './src/screens/Settings'
-import { colors } from './src/theme/colors'
 import GameCheckHarness from './src/dev/GameCheckHarness'
 import { createClock } from './src/session/clock'
 import { serverNowMs, SessionError, type RpcClient } from './src/session/api'
@@ -128,6 +127,8 @@ export default function App() {
   const [soundEffectsEnabled, setSoundEffectsEnabled] = useState(true)
   const [backgroundMusicEnabled, setBackgroundMusicEnabled] = useState(true)
   const [launch, setLaunch] = useState<TaxiLaunchResult | null>(null)
+  /** GoingHome이 벌칙(집 가)인지 자발적 귀가(집에 갈래)인지 — 문구만 다르고 경로는 같다 */
+  const [goingHomeReason, setGoingHomeReason] = useState<'penalty' | 'voluntary'>('penalty')
   /** CreateRoom의 뒤로가기가 어디로 돌아갈지. Home에서 새로 만들 때와 Lobby에서 재초대할 때가 다르다 */
   const [createRoomOrigin, setCreateRoomOrigin] = useState<'Home' | 'Lobby'>('Home')
 
@@ -254,14 +255,37 @@ export default function App() {
     return subscribeActiveSession(roomId, setActiveSessionId)
   }, [roomId])
 
+  // 복귀 동기화 — 탭이 숨겨져 있던 동안 온 Realtime 신호는 이미 지나갔다. 다시 보이면
+  // 즉시 재조회한다. 안 하면 "화장실 다녀오는 사이 세션이 열렸다 끝나서 평균 0점으로
+  // 강퇴"가 그대로 남는다 (webDistribution.md §C.1 — "가장 중요하다").
+  useEffect(() => {
+    if (!roomId || Platform.OS !== 'web' || typeof document === 'undefined') return
+
+    function onVisibilityChange() {
+      if (document.visibilityState !== 'visible' || !roomId) return
+      getActiveSessionId(roomId).then(setActiveSessionId).catch(() => {})
+      listPlayers(roomId).then(setLobbyPlayers).catch(() => {})
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  }, [roomId])
+
   // 로비에 들어올 때마다(입장 직후·재입장·세션 종료 후 복귀) 다음 세션 알림 기준
-  // 시각을 다시 읽는다 — 직전 세션이 막 끝났으면 ended_at이 갱신돼 있어야 하므로.
+  // 시각과 참가자 목록(누적 평균·순위 포함)을 다시 읽는다 — 직전 세션이 막 끝났으면
+  // ended_at·scores가 갱신돼 있어야 하는데, players 테이블 자체는 안 바뀌어서
+  // subscribeToPlayers만으로는 이 갱신을 못 잡는다.
   useEffect(() => {
     if (screen !== 'Lobby' || !roomId) return
     let cancelled = false
     getNextSessionDueAt(roomId)
       .then((ms) => {
         if (!cancelled) setNextSessionDueAtMs(ms)
+      })
+      .catch(() => {})
+    listPlayers(roomId)
+      .then((players) => {
+        if (!cancelled) setLobbyPlayers(players)
       })
       .catch(() => {})
     return () => {
@@ -356,12 +380,8 @@ export default function App() {
       if (!code) return
       setScreen('JoinRoom')
       handleCheckAndJoin(code)
-      // 웹에서 ?room=CODE를 처리한 뒤엔 주소창을 정리한다 — 안 지우면 나중에
-      // 새로고침할 때마다 이 방으로 다시 자동 참여를 시도한다(join_room 자체는
-      // 멱등이라 위험하진 않지만, 주소창이 지저분한 채로 남는 건 안 좋다).
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.history.replaceState(null, '', window.location.pathname)
-      }
+      // 주소창은 일부러 안 지운다 — 새로고침해도 같은 방으로 다시 들어가는 게
+      // 오히려 이득이다 (webDistribution.md §A.2). join_room 자체가 멱등이라 안전하다.
     }
 
     if (!initialDeepLinkHandledRef.current) {
@@ -499,26 +519,40 @@ export default function App() {
       if (e instanceof RoomError && ['ROOM_EXPIRED', 'ROOM_NOT_FOUND', 'PLAYER_NOT_FOUND'].includes(e.code)) {
         await clearStoredRoomCode()
         setStoredRoomCodeState(null)
+        // S0 명세: "방이 이미 소멸 → 안내 후 로컬 코드 삭제, S0 유지". Home에서 부르면
+        // 이미 Home이라 no-op이지만, GoingHome의 "아직 안 갈래"에서 부르면 이게 없으면
+        // 실패 후에도 GoingHome에 그대로 갇힌다.
+        setScreen('Home')
       }
     }
   }
 
+  /**
+   * "집에 갈래" — 벌칙과 완전히 같은 경로를 탄다: 서버 제거 커밋(leave_room) →
+   * 응답 확인 → 카카오T 딥링크 (sessionEnd.md §4.3, §4.2 순서 경고).
+   * 딥링크를 먼저 쏘면 앱이 백그라운드로 내려가면서 leave_room 요청이 유실될 수 있다.
+   *
+   * 방 코드는 로컬에 그대로 둔다 — S10 명세: "아직 안 갈래"가 이 코드로 복귀한다.
+   * storedRoomCode를 지우는 건 방이 실제로 사라졌을 때(handleRejoin)뿐이다.
+   */
   async function handleLeaveRoom() {
     try {
       await leaveRoom()
     } catch (e) {
       console.warn('leave_room 실패', e)
     }
-    await clearStoredRoomCode()
-    setStoredRoomCodeState(null)
     setActiveRoomCode(null)
     setRoomId(null)
     setMyPlayerId(null)
-    setScreen('Home')
+    setGoingHomeReason('voluntary')
+    setLaunch(null)
+    setScreen('GoingHome')
+    setLaunch(await openKakaoTaxi())
   }
 
   /** 벌칙 카운트다운이 끝나면 카카오T를 띄우고 귀가 화면으로 넘어간다. */
   const callTaxi = async () => {
+    setGoingHomeReason('penalty')
     setLaunch(null)
     setScreen('GoingHome')
     setLaunch(await openKakaoTaxi())
@@ -671,7 +705,7 @@ export default function App() {
       )}
       {screen === 'GoingHome' && (
         <GoingHome
-          reason="penalty"
+          reason={goingHomeReason}
           launch={launch}
           onSettings={() => setScreen('Settings')}
           onOpenStore={() => {
@@ -679,7 +713,9 @@ export default function App() {
             // iOS에 플레이스토어 링크를 주면 열리기만 하고 설치가 안 된다.
             Linking.openURL(storeUrl()).catch(() => {})
           }}
-          onStay={() => setScreen('Lobby')}
+          // 이 시점엔 이미 방에서 나간 상태(roomId=null)라 그냥 화면 전환이 아니라
+          // 진짜 재입장(rejoin_room)이 필요하다 — handleRejoin이 storedRoomCode로 처리한다.
+          onStay={handleRejoin}
         />
       )}
       {screen === 'Game' && <GameSandbox onSettings={() => setScreen('Settings')} />}
@@ -705,44 +741,6 @@ export default function App() {
           setNicknameSheetVisible(false)
         }}
       />
-
-      <DevSwitcher current={screen} onChange={setScreen} />
     </View>
   )
 }
-
-/** 개발 중 화면 미리보기 전환용. 실제 네비게이션이 붙으면 제거한다. */
-function DevSwitcher({ current, onChange }: { current: ScreenName; onChange: (s: ScreenName) => void }) {
-  return (
-    <View style={styles.dev}>
-      {SCREENS.map((s) => (
-        <Pressable key={s} onPress={() => onChange(s)} style={[styles.devBtn, current === s && styles.devBtnActive]}>
-          <Text style={styles.devText}>{s}</Text>
-        </Pressable>
-      ))}
-    </View>
-  )
-}
-
-const styles = StyleSheet.create({
-  dev: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    backgroundColor: '#00000088',
-  },
-  devBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  devBtnActive: {
-    backgroundColor: colors.primary,
-  },
-  devText: {
-    color: 'white',
-    fontSize: 10,
-  },
-})

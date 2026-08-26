@@ -10,9 +10,12 @@ export interface GameRevealProps {
   onDone: () => void
 }
 
-// 서버가 주는 리드타임이 고정 5초라, 여기서 너무 오래 끌면 카운트다운(S5) 볼 시간이 없어진다.
-const REVEAL_INTERVAL_MS = 350
-const HOLD_AFTER_MS = 400
+// 서버 리드타임(c_lead_sec, 백엔드 start_session)을 9초로 늘려서 이 연출에 여유를
+// 줬다. 카운트다운(S5)은 남은 시간을 그대로 세므로(remainingMs 기반) 여기서 시간을
+// 더 써도 안 깨진다 — 다만 총합이 c_lead_sec을 넘으면 카운트다운이 통째로 사라지니
+// 여유를 두고 맞춘다(3장 공개 ~2.4초 + 홀드 1.5초 ≈ 3.9초, 남는 ~5초가 카운트다운).
+const REVEAL_INTERVAL_MS = 800
+const HOLD_AFTER_MS = 1500
 
 /**
  * S4 — 게임 3개 공개. 슬롯머신처럼 한 판씩 확정되고, 전원 화면에서

@@ -135,7 +135,7 @@ function PlayerRow({
         </Text>
         <Text style={[styles.deltaIcon, penalized && styles.deltaIconOnColor]}>{deltaIcon(delta)}</Text>
       </View>
-      <Text style={[styles.score, penalized && styles.scoreOnColor]}>{player.avgScore.toFixed(0)}</Text>
+      <Text style={[styles.score, penalized && styles.scoreOnColor]}>{player.avgScore.toFixed(0)}점</Text>
     </View>
   )
 }
