@@ -21,8 +21,14 @@ import {
 import { supabase } from './src/lib/supabase'
 import { checkRoom, createRoom, ensureAnonymousSession, joinRoom, leaveRoom, rejoinRoom, RoomError, setSessionPeriod } from './src/room/api'
 import { listAllRoomPlayersEver, listPlayers, subscribeToPlayers } from './src/room/players'
+import { joinRoomPresence } from './src/room/presence'
 import { listSessionScores } from './src/room/scores'
-import { getActiveSessionId, subscribeActiveSession, subscribeSessionStart } from './src/room/sessions'
+import {
+  getActiveSessionId,
+  getNextSessionDueAt,
+  subscribeActiveSession,
+  subscribeSessionStart,
+} from './src/room/sessions'
 import { CreateRoom } from './src/screens/CreateRoom'
 import { Countdown } from './src/screens/Countdown'
 import { GameHost } from './src/screens/GameHost'
@@ -74,6 +80,15 @@ const SCREENS = [
   'GameCheck',
 ] as const
 type ScreenName = (typeof SCREENS)[number]
+
+/** remainingMs가 0 이하면 null(=주기 도달, 배지로 전환). 아니면 "분:초" */
+function formatCountdown(remainingMs: number): string | null {
+  if (remainingMs <= 0) return null
+  const totalSec = Math.ceil(remainingMs / 1000)
+  const minutes = Math.floor(totalSec / 60)
+  const seconds = totalSec % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
 
 function roomErrorMessage(e: unknown): string {
   if (e instanceof RoomError || e instanceof SessionError) {
@@ -131,6 +146,13 @@ export default function App() {
   const [fallbackResultPlayers, setFallbackResultPlayers] = useState<ResultPlayer[] | null>(null)
   /** 이 방에 지금 진행 중인(끝나지 않은) 세션이 있는지. S11 대기 화면 라우팅에만 쓴다 */
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  /** 다음 세션 "슬슬 할 때" 알림 기준 시각(ms epoch). 로비 배지·카운트다운 표시용 */
+  const [nextSessionDueAtMs, setNextSessionDueAtMs] = useState<number | null>(null)
+  /** 로비에 떠 있는 동안만 1초마다 갱신 — 카운트다운 텍스트 재계산 트리거 */
+  const [lobbyNowMs, setLobbyNowMs] = useState(() => Date.now())
+  /** 이 방에 지금 접속 중인 플레이어 id들 (Supabase Presence). players 테이블의
+   * "방 소속 여부"와는 별개로 "화면을 보고 있나"만 나타낸다. */
+  const [onlinePlayerIds, setOnlinePlayerIds] = useState<Set<string>>(new Set())
 
   const [nicknameSheetVisible, setNicknameSheetVisible] = useState(false)
   const pendingAfterNicknameRef = useRef<((nickname: string) => void) | null>(null)
@@ -182,6 +204,16 @@ export default function App() {
     return subscribeToPlayers(roomId, setLobbyPlayers)
   }, [roomId])
 
+  // 방에 들어와 있는 동안 "나 지금 접속 중"을 Presence로 알리고, 남들의 접속 상태도 받는다
+  // (mdfile/집가_설계정리.md §3.3, 프론트엔드_화면명세.md S1 실시간 인원 카운트).
+  useEffect(() => {
+    if (!roomId || !myPlayerId || !nickname) {
+      setOnlinePlayerIds(new Set())
+      return
+    }
+    return joinRoomPresence(roomId, { playerId: myPlayerId, nickname }, setOnlinePlayerIds)
+  }, [roomId, myPlayerId, nickname])
+
   // 이 방에 지금 진행 중인 세션이 있는지 계속 최신으로 들고 있는다. 세션 도중에 새로
   // 입장·재입장한 사람을 로비 대신 대기 화면(S11)으로 돌리는 데만 쓴다.
   useEffect(() => {
@@ -192,6 +224,28 @@ export default function App() {
     getActiveSessionId(roomId).then(setActiveSessionId).catch(() => {})
     return subscribeActiveSession(roomId, setActiveSessionId)
   }, [roomId])
+
+  // 로비에 들어올 때마다(입장 직후·재입장·세션 종료 후 복귀) 다음 세션 알림 기준
+  // 시각을 다시 읽는다 — 직전 세션이 막 끝났으면 ended_at이 갱신돼 있어야 하므로.
+  useEffect(() => {
+    if (screen !== 'Lobby' || !roomId) return
+    let cancelled = false
+    getNextSessionDueAt(roomId)
+      .then((ms) => {
+        if (!cancelled) setNextSessionDueAtMs(ms)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [screen, roomId])
+
+  // 로비에 떠 있는 동안만 카운트다운 텍스트를 1초마다 다시 계산한다
+  useEffect(() => {
+    if (screen !== 'Lobby') return
+    const id = setInterval(() => setLobbyNowMs(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [screen])
 
   // 세션이 시작되면(방장이 눌렀든, 참가자로서 Realtime으로 알게 됐든) 로비를 벗어나
   // 게임 3개 공개(S4)로 넘어간다. 그 뒤 단계는 각 화면의 onDone이 직접 넘긴다.
@@ -436,10 +490,16 @@ export default function App() {
 
   if (!fontsLoaded || booting) return null
 
-  const isHost = lobbyPlayers.length > 0 && lobbyPlayers[0].id === myPlayerId
+  // lobbyPlayers[0]이 항상 방장인 건 아니다 — 방장 강퇴 시 세션 1등에게 승계되면서
+  // 입장 순서와 host_player_id가 어긋날 수 있다. 반드시 isHost 필드로 판단한다.
+  const isHost = lobbyPlayers.some((p) => p.isHost && p.id === myPlayerId)
   // 서버 응답과 무관하게 항상 확정되는 내 3판 평균. final 이전엔 null이라 0으로 방어한다
   // (SessionResult는 phase==='final'일 때만 렌더링되므로 실제로는 항상 값이 있다).
   const myAverage = (session.state && sessionAverage(session.state)) ?? 0
+  // 순수 알림용 카운트다운 — 주기가 찼으면 null을 줘서 Lobby가 배지로 바꿔 보여준다.
+  // 시작 버튼은 이 값과 무관하게 항상 눌린다(canStart만 본다).
+  const nextSessionLabel =
+    nextSessionDueAtMs === null ? null : formatCountdown(nextSessionDueAtMs - lobbyNowMs)
 
   return (
     <View style={{ flex: 1 }}>
@@ -470,6 +530,7 @@ export default function App() {
       {screen === 'CreateRoom' && (
         <CreateRoom
           roomCode={creatingRoom ? null : activeRoomCode}
+          onlineCount={onlinePlayerIds.size}
           errorMessage={createRoomError}
           onBack={() => setScreen(createRoomOrigin)}
           onSettings={() => setScreen('Settings')}
@@ -488,11 +549,10 @@ export default function App() {
       {screen === 'Lobby' && (
         <Lobby
           players={lobbyPlayers}
+          onlinePlayerIds={onlinePlayerIds}
           threshold={40}
           isHost={isHost}
-          // 세션 엔진(S4~S8)이 아직 안 붙어서 이 방에서 세션이 끝난 적이 없다 — 계산할
-          // 근거(session_period_min, 마지막 ended_at)가 없으므로 타이머 없음(null)이 맞다.
-          nextSessionLabel={null}
+          nextSessionLabel={nextSessionLabel}
           canStart={lobbyPlayers.length >= 2}
           onStartSession={() => session.start()}
           onLeaveRoom={handleLeaveRoom}

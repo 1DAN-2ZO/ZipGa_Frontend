@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { colors, fonts, radius } from '../theme/colors'
 
-const AUTO_ADVANCE_MS = 3000
+/** 3 · 2 · 1 로 보여준다. 0은 화면에 안 띄운다 — 1이 보이는 동안 자동 진행이 걸린다 */
+const AUTO_ADVANCE_SEC = 3
 
 export interface ResultPlayer {
   id: string
@@ -46,16 +47,31 @@ export function SessionResult({
   const sorted = players ? [...players].sort((a, b) => b.avgScore - a.avgScore) : null
   const iAmPenalized = myAverage < threshold
 
+  const [secondsLeft, setSecondsLeft] = useState(AUTO_ADVANCE_SEC)
   const advanceRef = useRef(false)
   useEffect(() => {
     advanceRef.current = false
+    setSecondsLeft(AUTO_ADVANCE_SEC)
     const advance = iAmPenalized ? onCallTaxi : onBackToLobby
-    const timer = setTimeout(() => {
-      if (advanceRef.current) return
-      advanceRef.current = true
-      advance()
-    }, AUTO_ADVANCE_MS)
-    return () => clearTimeout(timer)
+
+    // setState 업데이터 안에서 부모 setState(advance)를 부르면 "다른 컴포넌트를
+    // 렌더링 중에 업데이트" 경고가 난다 — 카운트만 업데이터로 하고, advance 호출은
+    // 인터벌 콜백 본문에서 별도로 한다.
+    let remaining = AUTO_ADVANCE_SEC
+    const interval = setInterval(() => {
+      remaining -= 1
+      if (remaining <= 0) {
+        clearInterval(interval)
+        if (!advanceRef.current) {
+          advanceRef.current = true
+          advance()
+        }
+        return
+      }
+      setSecondsLeft(remaining)
+    }, 1000)
+
+    return () => clearInterval(interval)
   }, [iAmPenalized, onCallTaxi, onBackToLobby])
 
   return (
@@ -88,7 +104,9 @@ export function SessionResult({
       <View style={styles.outcome}>
         <Text style={styles.outcomeLabel}>{iAmPenalized ? '탈락' : '생존'}</Text>
         <Text style={styles.outcomeMessage}>
-          {iAmPenalized ? '3초 후에 택시를 호출합니다.' : '3초 후에 대기실로 이동합니다.'}
+          {iAmPenalized
+            ? `${secondsLeft}초 후에 택시를 호출합니다.`
+            : `${secondsLeft}초 후에 대기실로 이동합니다.`}
         </Text>
       </View>
     </View>

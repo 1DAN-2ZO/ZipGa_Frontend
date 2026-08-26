@@ -11,6 +11,8 @@ function roomDeepLink(roomCode: string): string {
 export interface CreateRoomProps {
   /** null이면 로딩 중, 문자열이면 발급된 방 코드 */
   roomCode: string | null
+  /** 지금 이 방에 접속 중인 인원 수 (Supabase Presence) */
+  onlineCount: number
   errorMessage?: string | null
   onBack: () => void
   onSettings: () => void
@@ -18,7 +20,7 @@ export interface CreateRoomProps {
   onDone?: () => void
 }
 
-export function CreateRoom({ roomCode, errorMessage, onBack, onSettings, onDone }: CreateRoomProps) {
+export function CreateRoom({ roomCode, onlineCount, errorMessage, onBack, onSettings, onDone }: CreateRoomProps) {
   return (
     <View style={styles.screen}>
       <ScreenHeader title="ZipGa" onBack={onBack} onSettings={onSettings} />
@@ -39,6 +41,8 @@ export function CreateRoom({ roomCode, errorMessage, onBack, onSettings, onDone 
           <Text style={styles.codeText}>{roomCode}</Text>
         </View>
       )}
+
+      {roomCode && <Text style={styles.onlineCount}>{onlineCount}명 들어왔어요</Text>}
 
       {errorMessage && <Text style={styles.error}>{errorMessage}</Text>}
 
@@ -100,6 +104,13 @@ const styles = StyleSheet.create({
     fontSize: 28,
     letterSpacing: 4,
     color: colors.textPrimary,
+  },
+  onlineCount: {
+    marginTop: 12,
+    textAlign: 'center',
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.textSecondary,
   },
   error: {
     marginTop: 16,
