@@ -19,7 +19,16 @@ import {
   setStoredRoomCode,
 } from './src/lib/localProfile'
 import { supabase } from './src/lib/supabase'
-import { checkRoom, createRoom, ensureAnonymousSession, joinRoom, leaveRoom, rejoinRoom, RoomError } from './src/room/api'
+import {
+  checkRoom,
+  createRoom,
+  ensureAnonymousSession,
+  joinRoom,
+  leaveRoom,
+  rejoinRoom,
+  RoomError,
+  setSessionPeriod,
+} from './src/room/api'
 import { listAllRoomPlayersEver, listPlayers, subscribeToPlayers } from './src/room/players'
 import { listSessionScores } from './src/room/scores'
 import { getActiveSessionId, subscribeActiveSession, subscribeSessionStart } from './src/room/sessions'
@@ -310,8 +319,7 @@ export default function App() {
     action?.(value)
   }
 
-  async function handleRoomSetupNext() {
-    // TODO: set_session_period 호출은 세션 엔진이 붙으면 같이 넣는다. 지금은 방 생성에만 쓴다.
+  async function handleRoomSetupNext(intervalMinutes: number) {
     setScreen('CreateRoom')
     setCreatingRoom(true)
     setCreateRoomError(null)
@@ -322,6 +330,11 @@ export default function App() {
       setActiveRoomCode(result.roomCode)
       await setStoredRoomCode(result.roomCode)
       setStoredRoomCodeState(result.roomCode)
+      try {
+        await setSessionPeriod(intervalMinutes)
+      } catch (e) {
+        console.warn('set_session_period 실패', e)
+      }
     } catch (e) {
       setCreateRoomError(roomErrorMessage(e))
     } finally {
@@ -456,8 +469,8 @@ export default function App() {
         <RoomSetup
           onBack={() => setScreen('Home')}
           onSettings={() => setScreen('Settings')}
-          onNext={() => {
-            handleRoomSetupNext()
+          onNext={(intervalMinutes) => {
+            handleRoomSetupNext(intervalMinutes)
           }}
         />
       )}
