@@ -200,3 +200,35 @@ describe('SentenceCopyGame', () => {
     expect(onFinish.mock.calls[0][0].finished).toBe(false)
   })
 })
+
+/**
+ * 한 판에 여러 문장을 연속으로 친다. 제출할 때마다 키보드가 내려가면
+ * 다음 문장을 칠 때마다 입력창을 다시 눌러야 해서 게임이 성립하지 않는다.
+ *
+ * react-native-web은 submitBehavior를 모르고 레거시 blurOnSubmit만 본다.
+ * 단일행 기본값이 true라 이 속성이 빠지면 웹에서 Enter마다 blur된다.
+ */
+describe('제출 후 포커스 유지', () => {
+  it('제출해도 입력창이 흐려지지 않게 두 속성을 모두 넘긴다', async () => {
+    await renderGame(20260826)
+    const input = screen.getByPlaceholderText('여기에 똑같이 입력')
+
+    // 네이티브용
+    expect(input.props.submitBehavior).toBe('submit')
+    // 웹(react-native-web)용 — 없으면 단일행 기본값 true라 blur된다
+    expect(input.props.blurOnSubmit).toBe(false)
+  })
+
+  it('정답을 낸 뒤에도 입력창이 계속 살아 있다', async () => {
+    const seed = 20260826
+    await renderGame(seed)
+    const [first] = sequenceFor(seed)
+
+    await typeAndSubmit(first)
+
+    const input = screen.getByPlaceholderText('여기에 똑같이 입력')
+    // 다음 문장으로 넘어갔고, 입력창은 여전히 칠 수 있는 상태다
+    expect(input.props.editable).toBe(true)
+    expect(input.props.value).toBe('')
+  })
+})
