@@ -420,11 +420,13 @@ export default function App() {
     setScreen('Settings')
   }
 
+  /**
+   * 방을 만들거나 들어가기 직전에 항상 닉네임 시트를 띄운다. 저장된 닉네임이
+   * 있으면 프리필만 하고(확인 한 번이면 되니 사실상 원터치), 그렇다고 시트 자체를
+   * 건너뛰면 안 된다 — 건너뛰면 한 번 정한 닉네임을 영영 못 바꾸게 된다
+   * (mdfile/frontend.md §4.0 "프리필한다"이지 "생략한다"가 아니다).
+   */
   function requireNickname(action: (nickname: string) => void) {
-    if (nickname) {
-      action(nickname)
-      return
-    }
     pendingAfterNicknameRef.current = action
     setNicknameSheetVisible(true)
   }
