@@ -29,6 +29,15 @@ export const COUNTDOWN_MS = 3000;
  */
 export const TARGET_CORRECT = 8;
 
+/**
+ * 정답으로 이어질 수 없는 입력을 지우기까지의 시간(ms).
+ *
+ * 틀린 숫자를 그대로 두면 입력칸이 꽉 차서 그 문제를 영영 못 푼다.
+ * 오타 한 번에 한 문제를 통째로 날리는 셈이라, 잠깐 빨갛게 보여준 뒤 스스로 비운다.
+ * 바로 지우면 무엇을 잘못 쳤는지 못 보고, 너무 늦게 지우면 그동안 막혀 있다.
+ */
+export const WRONG_CLEAR_MS = 400;
+
 /** 답이 가장 클 때가 99+99=198 이므로 입력창은 세 자리까지 받는다. */
 export const MAX_ANSWER_DIGITS = 3;
 
