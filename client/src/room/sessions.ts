@@ -73,3 +73,32 @@ export function subscribeActiveSession(roomId: string, onChange: (sessionId: str
     channel = null
   }
 }
+
+/**
+ * 다음 세션이 "슬슬 할 때가 됐다"고 알릴 시각(ms epoch). 시작을 강제하지 않는다 —
+ * 방장이 여전히 아무 때나 누를 수 있고, 이건 로비 배지·카운트다운 표시용 정보일 뿐이다
+ * (mdfile/프론트엔드_화면명세.md S3 "시작 버튼 ... 주기 도달 전에도 누를 수 있음").
+ *
+ * 기준 시각은 이 방의 마지막으로 끝난 세션의 ended_at, 아직 세션이 한 번도 안 끝났다면
+ * 방 생성 시각(created_at)이다. 여기에 방장이 고른 session_period_min(분)을 더한다.
+ */
+export async function getNextSessionDueAt(roomId: string): Promise<number> {
+  const [{ data: room, error: roomError }, { data: lastEnded, error: sessionError }] = await Promise.all([
+    supabase.from('rooms').select('session_period_min, created_at').eq('id', roomId).single(),
+    supabase
+      .from('sessions')
+      .select('ended_at')
+      .eq('room_id', roomId)
+      .not('ended_at', 'is', null)
+      .order('ended_at', { ascending: false })
+      .limit(1),
+  ])
+
+  if (roomError) throw roomError
+  if (sessionError) throw sessionError
+
+  const periodMin = (room as { session_period_min: number }).session_period_min
+  const baselineIso =
+    (lastEnded as Array<{ ended_at: string }>)[0]?.ended_at ?? (room as { created_at: string }).created_at
+  return Date.parse(baselineIso) + periodMin * 60_000
+}

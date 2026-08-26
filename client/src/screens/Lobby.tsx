@@ -17,13 +17,20 @@ export interface LobbyPlayer {
 
 export interface LobbyProps {
   players: LobbyPlayer[]
+  /** 지금 이 방에 접속 중인 플레이어 id들 (Supabase Presence). 화면 표시(초록 점)에만 쓴다 —
+   * 방 소속 여부(강퇴·나감) 판단에는 절대 안 쓴다, 그건 players 목록 자체가 이미 반영한다. */
+  onlinePlayerIds: Set<string>
   /** 앱 전역 상수. games/types.ts의 PENALTY_THRESHOLD와 항상 같아야 한다. */
   threshold: number
   /** 이 기기 사용자가 방장인지 */
   isHost: boolean
-  /** 다음 게임 시작까지 남은 시간 텍스트. 주기 도달 시 null로 주고 배지를 띄운다 */
+  /**
+   * 다음 게임 시작까지 남은 시간 텍스트. 주기 도달 시 null로 주고 배지를 띄운다.
+   * 순수 알림용이다 — "슬슬 게임 한 번 해라" 정도. 시작 버튼을 막지 않는다.
+   */
   nextSessionLabel: string | null
-  /** 시간과 무관한 시작 조건 (예: 최소 인원 2명). 시간 미도달 시(nextSessionLabel !== null) 시작 버튼은 이 값과 무관하게 비활성화된다 */
+  /** 시작 버튼을 누를 수 있는 유일한 조건 (최소 인원 2명). 주기 도달 여부와 무관하다
+   * (mdfile/프론트엔드_화면명세.md S3 — "주기 도달 전에도 누를 수 있음"). */
   canStart: boolean
   onStartSession: () => void
   onLeaveRoom: () => void
@@ -34,6 +41,7 @@ export interface LobbyProps {
 
 export function Lobby({
   players,
+  onlinePlayerIds,
   threshold,
   isHost,
   nextSessionLabel,
@@ -72,7 +80,7 @@ export function Lobby({
           return (
             <View>
               {showDivider && <ThresholdDivider threshold={threshold} />}
-              <PlayerRow player={item} penalized={item.avgScore < threshold} />
+              <PlayerRow player={item} penalized={item.avgScore < threshold} online={onlinePlayerIds.has(item.id)} />
             </View>
           )
         }}
@@ -83,7 +91,7 @@ export function Lobby({
           <PillButton
             label="게임 시작"
             variant="secondary"
-            disabled={!canStart || nextSessionLabel !== null}
+            disabled={!canStart}
             onPress={onStartSession}
           />
         )}
@@ -103,7 +111,16 @@ function ThresholdDivider({ threshold }: { threshold: number }) {
   )
 }
 
-function PlayerRow({ player, penalized }: { player: LobbyPlayer; penalized: boolean }) {
+function PlayerRow({
+  player,
+  penalized,
+  online,
+}: {
+  player: LobbyPlayer
+  penalized: boolean
+  /** Presence 기준 접속 여부. 끊겼다고 방에서 나간 건 아니다 — 그냥 흐리게만 표시한다 */
+  online: boolean
+}) {
   const delta = rankDelta(player.rank, player.previousRank)
   return (
     <View style={[styles.row, penalized && styles.rowPenalized]}>
@@ -111,6 +128,7 @@ function PlayerRow({ player, penalized }: { player: LobbyPlayer; penalized: bool
         <View style={styles.rankBadge}>
           <Text style={styles.rankText}>{player.rank}</Text>
         </View>
+        <View style={[styles.onlineDot, online ? styles.onlineDotOn : styles.onlineDotOff]} />
         <Text style={[styles.name, penalized && styles.nameOnColor]} numberOfLines={1}>
           {player.nickname}
           {player.isHost ? ' 👑' : ''}
@@ -190,6 +208,17 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 15,
     color: colors.textPrimary,
+  },
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: radius.pill,
+  },
+  onlineDotOn: {
+    backgroundColor: '#3ED598',
+  },
+  onlineDotOff: {
+    backgroundColor: colors.divider,
   },
   name: {
     flexShrink: 1,
