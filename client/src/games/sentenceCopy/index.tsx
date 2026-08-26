@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Keyboard, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native'
 import { COLORS } from '../../theme'
 import type { GameModule, GameProps } from '../types'
 import { buildSequence, computeResult, isExactMatch } from './logic'
@@ -127,9 +136,16 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
   }
 
   return (
-    <View
+    <KeyboardAvoidingView
       testID="game-root"
       style={styles.container}
+      /*
+        iOS만 'padding'인 이유: iOS는 키보드가 화면을 덮기만 해서 그대로 두면
+        입력창이 키보드 뒤로 숨는다. Android는 창 자체가 resize되므로(기본
+        softwareKeyboardLayoutMode) 여기서 또 밀면 두 번 밀린다. 웹은
+        react-native-web이 이 컴포넌트를 그냥 View로 렌더한다.
+      */
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       onLayout={(e) => setAvailableHeight(e.nativeEvent.layout.height)}
     >
       <View style={styles.hud}>
@@ -199,7 +215,7 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
           {isWrong ? '다시! 한 글자도 틀리면 안 돼' : '띄어쓰기·문장부호까지 똑같이'}
         </Text>
       )}
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 

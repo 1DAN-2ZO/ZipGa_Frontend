@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import React from 'react'
-import { Keyboard } from 'react-native'
+import { Keyboard, StyleSheet } from 'react-native'
 import { sentenceCopy } from '../sentenceCopy'
 import { buildSequence } from '../sentenceCopy/logic'
 import { SENTENCES } from '../sentenceCopy/sentences'
@@ -323,6 +323,9 @@ describe('남은 높이가 좁을 때 (웹·Android)', () => {
     await act(async () => {
       fireEvent(screen.getByTestId('game-root'), 'layout', {
         nativeEvent: { layout: { width: 390, height } },
+        // 루트가 KeyboardAvoidingView라 내부에서 event.persist()를 부른다.
+        // 실제 RN 레이아웃 이벤트에는 있는 메서드라 여기서도 채워준다.
+        persist: () => {},
       })
     })
   }
@@ -348,5 +351,25 @@ describe('남은 높이가 좁을 때 (웹·Android)', () => {
 
     expect(screen.queryByText('이 문장을 똑같이')).not.toBeNull()
     expect(screen.queryByText('맞춘 개수')).not.toBeNull()
+  })
+})
+
+/**
+ * iOS는 키보드가 화면을 덮기만 하고 창을 줄이지 않는다. 그대로 두면
+ * 입력창이 키보드 뒤로 숨어서 아무것도 칠 수 없다.
+ * Android는 창 자체가 resize되므로 여기서 또 밀면 두 번 밀린다.
+ */
+describe('iOS 키보드 회피', () => {
+  // behavior='padding'이 실제로 화면을 밀어 올리는지는 시뮬레이터/실기기에서만
+  // 확인할 수 있다. KeyboardAvoidingView는 behavior를 호스트 View로 넘기지 않고,
+  // RNTL v14에는 컴포지트 요소를 조회하는 수단이 없다.
+
+  it('배경색은 공통 톤 그대로다', async () => {
+    // 루트를 KeyboardAvoidingView로 바꿔도 games/__tests__/theme.test.tsx의
+    // 검사 대상은 그대로여야 한다.
+    await renderGame(20260826)
+
+    const root = screen.getByTestId('game-root')
+    expect(StyleSheet.flatten(root.props.style).backgroundColor).toBe('#E9E9ED')
   })
 })
