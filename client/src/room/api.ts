@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+import { getCachedAccessToken, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, supabase } from '../lib/supabase'
 
 /** mdfile/백엔드_Supabase명세.md §9. 백엔드가 raise exception으로 던지는 코드들. */
 export const ROOM_ERROR_CODES = [
@@ -92,6 +92,29 @@ export async function rejoinRoom(code: string): Promise<JoinedRoom> {
 
 export async function leaveRoom(): Promise<void> {
   await call('leave_room')
+}
+
+/**
+ * 탭을 닫을 때(pagehide) 쓰는 leave_room. 그 순간엔 await할 시간이 없다 —
+ * 응답을 기다리는 사이 브라우저가 페이지를 이미 버릴 수 있다. supabase.rpc()는
+ * 커스텀 fetch 옵션을 못 받으므로, 같은 요청을 직접 만들어 keepalive로 쏘고
+ * 응답은 기다리지 않는다(서버가 받기만 하면 된다). 실패해도 조용히 넘어간다 —
+ * 어차피 마지막 수단이고, 다음 접속 때 방이 그대로 있으면 재입장하면 된다.
+ */
+export function leaveRoomBeacon(): void {
+  const token = getCachedAccessToken()
+  if (!token) return
+
+  fetch(`${SUPABASE_URL}/rest/v1/rpc/leave_room`, {
+    method: 'POST',
+    keepalive: true,
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: '{}',
+  }).catch(() => {})
 }
 
 /**

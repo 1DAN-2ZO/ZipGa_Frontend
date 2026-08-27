@@ -24,3 +24,24 @@ export const supabase = createClient(url, publishableKey, {
     detectSessionInUrl: false,
   },
 })
+
+export const SUPABASE_URL = url
+export const SUPABASE_PUBLISHABLE_KEY = publishableKey
+
+/**
+ * 지금 로그인된 세션의 access token을 메모리에 들고 있는다.
+ *
+ * pagehide(탭 닫기) 핸들러는 await할 시간이 없다 — 브라우저가 그 틱 사이에
+ * 페이지를 버릴 수 있다. supabase.auth.getSession()을 그 안에서 부르면
+ * 비동기 한 틱이 끼어드는데, 여기서는 값을 미리 동기로 들고 있다가 그대로
+ * 쓴다. onAuthStateChange는 구독 즉시 현재 세션으로 한 번 불러주므로
+ * (INITIAL_SESSION) 앱이 뜨자마자 채워진다.
+ */
+let cachedAccessToken: string | null = null
+supabase.auth.onAuthStateChange((_event, session) => {
+  cachedAccessToken = session?.access_token ?? null
+})
+
+export function getCachedAccessToken(): string | null {
+  return cachedAccessToken
+}
