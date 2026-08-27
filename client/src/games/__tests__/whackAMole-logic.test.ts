@@ -1,20 +1,5 @@
 import { PENALTY_THRESHOLD } from '../types'
-import {
-  BOMB_RATIO,
-  bombCountFor,
-  buildSpawns,
-  countMoles,
-  HOLE_COUNT,
-  MAX_PER_WAVE,
-  MIN_PER_WAVE,
-  netScore,
-  normalize,
-  PASS_RATIO,
-  TIME_LIMIT_SEC,
-  VISIBLE_MAX_MS,
-  VISIBLE_MIN_MS,
-  WAVE_INTERVAL_MS,
-} from '../whackAMole/logic'
+import { BOMB_RATIO, HOLE_COLUMNS, HOLE_COUNT, HOLE_GAP, HOLE_SIZE, MAX_PER_WAVE, MIN_PER_WAVE, PASS_RATIO, TIME_LIMIT_SEC, VISIBLE_MAX_MS, VISIBLE_MIN_MS, WAVE_INTERVAL_MS, bombCountFor, buildSpawns, countMoles, holeAt, netScore, normalize } from '../whackAMole/logic'
 
 const DURATION = TIME_LIMIT_SEC * 1000
 const SEEDS = [1, 2, 3, 99, 12345, 777777, 2024]
@@ -220,5 +205,62 @@ describe('normalize', () => {
       expect(normalize(needed - 1, moles)).toBeLessThan(PENALTY_THRESHOLD)
       expect(normalize(needed, moles)).toBeGreaterThanOrEqual(PENALTY_THRESHOLD)
     }
+  })
+})
+
+/**
+ * 좌표로 구멍을 찾는다.
+ *
+ * 구멍마다 Pressable 을 두면 두 번째 손가락이 통째로 버려진다 — React Native 의
+ * 응답자(responder)는 전역에 하나뿐이라, 이미 응답자가 있으면 형제 노드는
+ * 후보에서 잘려 나간다. 두더지는 한 번에 두 마리까지 올라오므로 그러면 동시에
+ * 잡을 수가 없다. 그리드 하나가 모든 손가락을 받고 좌표로 구멍을 찾는다.
+ */
+describe('holeAt', () => {
+  const step = HOLE_SIZE + HOLE_GAP
+
+  it('각 구멍의 한가운데를 제 번호로 찾는다', () => {
+    for (let hole = 0; hole < HOLE_COUNT; hole++) {
+      const row = Math.floor(hole / HOLE_COLUMNS)
+      const col = hole % HOLE_COLUMNS
+      const x = col * step + HOLE_SIZE / 2
+      const y = row * step + HOLE_SIZE / 2
+      expect(holeAt(x, y)).toBe(hole)
+    }
+  })
+
+  it('구멍의 네 모서리도 그 구멍으로 친다', () => {
+    // 화면에서는 둥글게 보이지만 예전 Pressable 도 사각 영역 전체가 눌렸다.
+    // 모서리를 빼면 갑자기 더 어려워진다.
+    expect(holeAt(0, 0)).toBe(0)
+    expect(holeAt(HOLE_SIZE - 1, HOLE_SIZE - 1)).toBe(0)
+  })
+
+  it('구멍 사이 여백은 아무 것도 아니다', () => {
+    // 여백까지 먹으면 대충 문질러도 잡힌다.
+    expect(holeAt(HOLE_SIZE + HOLE_GAP / 2, HOLE_SIZE / 2)).toBeNull()
+    expect(holeAt(HOLE_SIZE / 2, HOLE_SIZE + HOLE_GAP / 2)).toBeNull()
+  })
+
+  it('그리드 밖은 null이다', () => {
+    expect(holeAt(-1, 10)).toBeNull()
+    expect(holeAt(10, -1)).toBeNull()
+    expect(holeAt(step * HOLE_COLUMNS + 5, 10)).toBeNull()
+    expect(holeAt(10, step * 3 + 5)).toBeNull()
+  })
+
+  it('좌표가 수가 아니면 null이다', () => {
+    // 마우스 이벤트에서 좌표가 안 넘어오는 경우가 있다.
+    expect(holeAt(NaN, 10)).toBeNull()
+    expect(holeAt(10, undefined as unknown as number)).toBeNull()
+  })
+
+  it('서로 다른 두 점이 서로 다른 구멍을 가리킨다', () => {
+    // 동시 터치가 의미를 가지려면 이게 성립해야 한다.
+    const first = holeAt(HOLE_SIZE / 2, HOLE_SIZE / 2)
+    const second = holeAt(step + HOLE_SIZE / 2, step + HOLE_SIZE / 2)
+    expect(first).not.toBe(second)
+    expect(first).not.toBeNull()
+    expect(second).not.toBeNull()
   })
 })

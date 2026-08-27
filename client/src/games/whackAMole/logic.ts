@@ -3,6 +3,43 @@ import { createRng } from '../prng'
 /** 3×3 격자. */
 export const HOLE_COUNT = 9
 
+/** 그리드 한 줄에 들어가는 구멍 수. 9개를 3x3 으로 놓는다. */
+export const HOLE_COLUMNS = 3
+
+/** 구멍 한 변의 길이(px). 화면 스타일과 좌표 판정이 같은 값을 봐야 한다. */
+export const HOLE_SIZE = 100
+
+/** 구멍 사이 여백(px) */
+export const HOLE_GAP = 10
+
+/**
+ * 그리드 기준 좌표가 어느 구멍인지. 구멍 밖(사이 여백)이면 null.
+ *
+ * 구멍마다 Pressable 을 두지 않고 그리드 전체를 터치면 하나로 받는 이유:
+ * React Native 의 응답자(responder)는 전역에 하나뿐이라, 서로 다른 Pressable
+ * 두 개를 동시에 누르면 두 번째 손가락이 통째로 버려진다. 두더지는 한 번에
+ * 두 마리까지 올라오므로 그러면 동시에 잡을 수가 없다. 응답자 하나가
+ * 모든 손가락을 받게 하고 좌표로 구멍을 찾는다.
+ *
+ * 판정은 원이 아니라 정사각형이다 — 화면에서는 둥글게 보이지만 예전
+ * Pressable 도 사각 영역 전체가 눌렸다. 모서리를 빼면 더 어려워진다.
+ */
+export function holeAt(x: number, y: number): number | null {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+
+  const step = HOLE_SIZE + HOLE_GAP
+  const col = Math.floor(x / step)
+  const row = Math.floor(y / step)
+  if (x < 0 || y < 0 || col >= HOLE_COLUMNS) return null
+
+  // 구멍 사이 여백에 떨어진 터치는 아무 것도 아니다
+  if (x - col * step > HOLE_SIZE) return null
+  if (y - row * step > HOLE_SIZE) return null
+
+  const hole = row * HOLE_COLUMNS + col
+  return hole < HOLE_COUNT ? hole : null
+}
+
 /**
  * 제한시간(초). 이 게임은 항상 이 길이로 돈다.
  *

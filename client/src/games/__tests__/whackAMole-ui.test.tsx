@@ -1,15 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import React from 'react'
 import { whackAMole } from '../whackAMole'
-import {
-  bombCountFor,
-  buildSpawns,
-  countMoles,
-  HOLE_COUNT,
-  netScore,
-  normalize,
-  type Spawn,
-} from '../whackAMole/logic'
+import { HOLE_COLUMNS, HOLE_COUNT, HOLE_GAP, HOLE_SIZE, bombCountFor, buildSpawns, countMoles, netScore, normalize, type Spawn } from '../whackAMole/logic'
 
 const Game = whackAMole.Component
 const LIMIT = whackAMole.info.timeLimitSec
@@ -35,15 +27,34 @@ async function renderGame(seed = 7) {
    * RNTL 14의 fireEvent도 비동기다. await하지 않으면 act 스코프가 다음
    * 테스트로 새어 나가 그쪽 렌더를 통째로 날려버린다.
    */
-  const strike = async (hole: number) => {
+  /** 구멍 번호를 그리드 기준 좌표(구멍 한가운데)로 바꾼다 */
+  const pointOf = (hole: number) => {
+    const step = HOLE_SIZE + HOLE_GAP
+    return {
+      locationX: (hole % HOLE_COLUMNS) * step + HOLE_SIZE / 2,
+      locationY: Math.floor(hole / HOLE_COLUMNS) * step + HOLE_SIZE / 2,
+    }
+  }
+
+  /**
+   * 구멍마다 버튼을 두지 않고 그리드 하나가 모든 손가락을 받는다 —
+   * 응답자가 전역에 하나뿐이라 버튼을 나눠 두면 두 번째 손가락이 버려진다.
+   * 그래서 조작도 그리드에 좌표를 실어 보내는 방식이다.
+   */
+  const strikeMany = async (...holes: number[]) => {
     await act(async () => {
-      fireEvent.press(screen.getByTestId(`hole-${hole}`))
+      fireEvent(screen.getByTestId('grid'), 'responderStart', {
+        nativeEvent: { changedTouches: holes.map(pointOf) },
+      })
     })
   }
+
+  const strike = async (hole: number) => strikeMany(hole)
 
   return {
     onFinish,
     strike,
+    strikeMany,
     result: () => onFinish.mock.calls[0]?.[0],
     spawns: buildSpawns(seed, DURATION),
   }
@@ -196,5 +207,72 @@ describe('whackAMole 화면', () => {
     expect(r.tiebreakMs).toBeGreaterThanOrEqual(0)
     expect(r.score).toBeGreaterThanOrEqual(0)
     expect(r.score).toBeLessThanOrEqual(countMoles(buildSpawns(99, DURATION)))
+  })
+})
+
+/**
+ * 동시 터치.
+ *
+ * 구멍마다 Pressable 을 두던 때는 두 마리가 같이 올라와도 한 마리만 잡혔다.
+ * React Native 의 응답자는 전역에 하나뿐이라, 이미 응답자가 있으면 형제
+ * 노드는 후보에서 잘려 나가고 두 번째 손가락이 통째로 버려진다.
+ * 그리드 하나가 changedTouches 를 직접 훑어 이 제약을 벗어난다.
+ */
+describe('두 손가락', () => {
+  /** 같은 순간에 올라와 있는 두 구멍을 찾는다 */
+  const findTwoUp = (spawns: ReturnType<typeof buildSpawns>) => {
+    for (const a of spawns) {
+      const mate = spawns.find(
+        (b) => b !== a && b.hole !== a.hole && b.showAtMs < a.hideAtMs && a.showAtMs < b.hideAtMs,
+      )
+      if (mate) return { at: Math.max(a.showAtMs, mate.showAtMs), holes: [a.hole, mate.hole] }
+    }
+    return null
+  }
+
+  it('동시에 올라온 두 마리를 한 번에 잡는다', async () => {
+    const seed = 7
+    const spawns = buildSpawns(seed, DURATION)
+    const pair = findTwoUp(spawns)
+    // 웨이브당 1~2마리라 같은 시드에서 겹치는 구간이 있어야 한다
+    expect(pair).not.toBeNull()
+
+    const game = await renderGame(seed)
+    await advance(pair!.at + 10)
+
+    const before = Number(screen.getByTestId('score').props.children.split(' / ')[0])
+    await game.strikeMany(pair!.holes[0], pair!.holes[1])
+    const after = Number(screen.getByTestId('score').props.children.split(' / ')[0])
+
+    // 예전 구조에서는 1만 올랐다.
+    expect(after - before).toBe(2)
+  })
+
+  it('여백을 같이 눌러도 구멍만 센다', async () => {
+    const seed = 7
+    const spawns = buildSpawns(seed, DURATION)
+    const pair = findTwoUp(spawns)!
+    const game = await renderGame(seed)
+    await advance(pair.at + 10)
+
+    const before = Number(screen.getByTestId('score').props.children.split(' / ')[0])
+    await act(async () => {
+      fireEvent(screen.getByTestId('grid'), 'responderStart', {
+        nativeEvent: {
+          changedTouches: [
+            // 구멍 사이 여백 — 아무 것도 아니어야 한다
+            { locationX: HOLE_SIZE + HOLE_GAP / 2, locationY: HOLE_SIZE / 2 },
+            {
+              locationX: (pair.holes[0] % HOLE_COLUMNS) * (HOLE_SIZE + HOLE_GAP) + HOLE_SIZE / 2,
+              locationY:
+                Math.floor(pair.holes[0] / HOLE_COLUMNS) * (HOLE_SIZE + HOLE_GAP) + HOLE_SIZE / 2,
+            },
+          ],
+        },
+      })
+    })
+    const after = Number(screen.getByTestId('score').props.children.split(' / ')[0])
+
+    expect(after - before).toBe(1)
   })
 })
