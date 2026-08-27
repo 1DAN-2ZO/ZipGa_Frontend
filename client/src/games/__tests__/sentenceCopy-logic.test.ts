@@ -1,4 +1,11 @@
-import { buildSequence, computeResult, isExactMatch, PERFECT_COUNT } from '../sentenceCopy/logic'
+import {
+  buildSequence,
+  computeResult,
+  isExactMatch,
+  PASS_COUNT,
+  PERFECT_COUNT,
+} from '../sentenceCopy/logic'
+import { PENALTY_THRESHOLD } from '../types'
 import { validateGameResult } from '../types'
 
 describe('buildSequence', () => {
@@ -153,5 +160,41 @@ describe('computeResult', () => {
       })
       expect(validateGameResult(result, 'sentenceCopy')).toEqual([])
     }
+  })
+})
+
+/**
+ * 몇 개를 쳐야 통과하고 몇 개면 만점인가.
+ *
+ * 예전에는 기준이 5개라 20초에 두 개만 쳐도 통과선을 넘었다. 세션은 3판
+ * 평균으로 벌칙을 정하는데, 게임마다 난이도가 들쭉날쭉하면 어떤 게임이
+ * 뽑히느냐가 벌칙을 좌우한다.
+ */
+describe('통과·만점 기준', () => {
+  const scoreFor = (correctCount: number) =>
+    computeResult({ correctCount, lastCorrectElapsedMs: 5000, timeLimitSec: 20, finished: true })
+      .normalizedScore
+
+  it('4개를 맞히면 통과선에 닿는다', () => {
+    expect(scoreFor(PASS_COUNT)).toBe(PENALTY_THRESHOLD)
+  })
+
+  it('3개까지는 통과선을 못 넘는다', () => {
+    expect(scoreFor(PASS_COUNT - 1)).toBeLessThan(PENALTY_THRESHOLD)
+  })
+
+  it('10개를 맞히면 만점이다', () => {
+    expect(scoreFor(PERFECT_COUNT)).toBe(100)
+  })
+
+  it('한 개당 10점씩 오른다', () => {
+    // 4개 40점에서 10개 100점까지 고르게 오른다.
+    for (let n = 0; n <= PERFECT_COUNT; n++) {
+      expect(scoreFor(n)).toBe(n * 10)
+    }
+  })
+
+  it('만점을 넘겨도 100에서 멈춘다', () => {
+    expect(scoreFor(PERFECT_COUNT + 7)).toBe(100)
   })
 })

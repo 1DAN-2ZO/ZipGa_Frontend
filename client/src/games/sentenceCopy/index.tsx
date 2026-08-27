@@ -172,12 +172,23 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
       </View>
 
       {/*
+        남는 공간을 여기서 다 먹어 문장을 입력창 쪽으로 끌어내린다.
+        예전에는 문장 영역이 flex:1로 남는 공간을 차지하고 그 안에서 가운데
+        정렬이라, 문장과 입력창 사이가 화면 높이만큼 벌어졌다.
+        자리가 모자라면 이 여백이 0까지 줄어들어 문장에 자리를 내준다.
+      */}
+      <View style={styles.filler} />
+
+      {/*
         ScrollView인 이유: 위에서 아무리 줄여도 긴 문장 + 작은 화면 조합이면
-        자리가 모자랄 수 있다. View라면 가운데 정렬 때문에 위아래로 넘쳐서
-        문장 윗줄이 잘려 나가는데(읽을 수가 없다), ScrollView면 넘칠 때
-        스크롤로 남는다. 자리가 충분하면 flexGrow+center로 그대로 가운데다.
+        자리가 모자랄 수 있다. 그때 잘리는 대신 스크롤로 남는다.
+
+        ⚠️ contentContainer에 justifyContent:'center'를 주면 안 된다. 내용이
+        넘칠 때 가운데 정렬이 윗부분을 위로 밀어내는데, 그 영역은 스크롤로도
+        닿지 못해서 첫 줄이 영영 안 보인다. 위에서부터 쌓아야 넘쳐도 다 읽힌다.
       */}
       <ScrollView
+        testID="sentence-stage"
         style={styles.stage}
         contentContainerStyle={styles.stageContent}
         showsVerticalScrollIndicator={false}
@@ -240,9 +251,22 @@ const styles = StyleSheet.create({
    * 그러면 따라 쓸 문장이 통째로 사라진다 — 이 게임에서는 문장이
    * 입력창 다음으로 양보할 수 없는 요소다. 축소본 기준 두 줄은 남긴다.
    */
-  stage: { flex: 1, minHeight: 72 },
-  stageContent: { flexGrow: 1, justifyContent: 'center', paddingVertical: 8 },
-  prompt: { color: colors.textMuted, fontSize: 14, marginBottom: 10 },
+  /** 남는 공간을 먹어 문장을 입력창 쪽으로 붙인다. 모자라면 0까지 줄어든다 */
+  filler: { flex: 1 },
+  /**
+   * flexGrow를 0으로 못박는다 — ScrollView는 기본이 flex:1 1 auto 라서
+   * 가만두면 남는 공간만큼 자라고, 그만큼 문장과 입력창 사이가 벌어진다.
+   * 문장 높이만큼만 차지하게 해야 간격이 최소가 된다.
+   * 자리가 모자라면 flexShrink로 줄어들고 스크롤이 생긴다.
+   *
+   * minHeight는 최후의 보루다 — flexShrink는 0까지 줄어들 수 있는데 그러면
+   * 따라 쓸 문장이 통째로 사라진다. 축소본 한 줄(33) + 아래 여백(8) 기준으로
+   * 잡는다. 이보다 크게 잡으면 한 줄짜리 짧은 문장일 때 그 차이가 그대로
+   * 입력창과의 빈 공간이 된다.
+   */
+  stage: { flexGrow: 0, flexShrink: 1, minHeight: 44 },
+  stageContent: { paddingBottom: 8 },
+  prompt: { color: colors.textMuted, fontSize: 14, marginBottom: 6 },
   sentence: { color: colors.textPrimary, fontSize: 30, fontWeight: '700', lineHeight: 42 },
   /** 키보드가 올라온 동안 쓰는 축소본 */
   countCompact: { fontSize: 26 },
