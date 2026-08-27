@@ -23,11 +23,11 @@ async function fetchHostPlayerId(roomId: string): Promise<string | null> {
 }
 
 /**
- * 방 참가자 목록. 아직 한 번도 세션을 안 뛴 사람은 avgScore 0으로 맨 뒤 쪽에 깔린다
- * (standings.ts가 안 돌아본 세션은 애초에 데이터가 없으니 자연스럽게 0).
+ * 방 참가자 목록. 방금 끝난 세션에 참가하지 않은 사람(아직 한 번도 안 뛰었거나
+ * 이번 판을 쉬었거나)은 avgScore 0으로 맨 뒤 쪽에 깔린다.
  *
- * 순위는 입장 순서가 아니라 실제 누적 평균 점수 내림차순이다 — 이게 이 목록의
- * 존재 이유다. 방장 판단은 정렬과 무관하게 host_player_id로 따로 한다
+ * 순위는 입장 순서가 아니라 방금 끝난 세션의 점수 내림차순이다(누적 아님 —
+ * standings.ts 참고). 방장 판단은 정렬과 무관하게 host_player_id로 따로 한다
  * (host_player_id를 못 읽었을 때만 최초 입장자로 대체 — joined_seq 최솟값을 직접 찾는다,
  * 정렬 순서에 기대지 않는다).
  */
