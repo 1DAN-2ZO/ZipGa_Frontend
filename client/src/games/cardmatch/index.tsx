@@ -30,7 +30,27 @@ import {
  *  - onFinish 는 정확히 한 번만 호출
  */
 
-const GAP = 10;
+const GAP = 8;
+
+/* 카드 세로 / 가로 비율의 허용 범위.
+
+   가로는 3장이 화면 폭을 꽉 채우는 순간 더 못 키운다.
+   그래서 남는 위아래 공간을 세로로 써서 카드를 키운다.
+   다만 끝없이 늘리면 카드가 젓가락처럼 길쭉해지므로 위아래로 한계를 둔다.
+   (참고: 실제 트럼프 카드는 1.4) */
+const RATIO_MIN = 1.20;
+const RATIO_MAX = 1.55;
+
+/** 이보다 작아지면 그림이 뭉개져서 못 알아본다. */
+const MIN_CARD_W = 48;
+
+/**
+ * 들어갈 수 있는 최대 크기에서 살짝 줄이는 비율.
+ *
+ * 꽉 채우면 카드가 화면 가장자리에 닿아 답답해 보인다.
+ * 조금 물러서면 격자가 한 덩어리로 읽힌다.
+ */
+const CARD_SCALE = 0.92;
 const COLLECT_MS = 360;   // 다 맞춘 카드가 가운데로 모이는 시간
 const CLEAR_HOLD_MS = 380; // "클리어!" 를 보여주는 시간
 const DEAL_STAGGER = 30;
@@ -58,7 +78,10 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const [total, setTotal] = useState(0);
   const [left, setLeft] = useState(limitMs);
   const [banner, setBanner] = useState('');
+  /** 미리보기 동안 머리에 뜨는 3·2·1. 플레이가 시작되면 빈 문자열이 된다. */
+  const [countText, setCountText] = useState('');
   const [gridW, setGridW] = useState(() => Math.max(240, Dimensions.get('window').width - 36));
+  const [gridH, setGridH] = useState(() => Math.max(240, Dimensions.get('window').height * 0.62));
 
   // --- 렌더에 영향 없는 값 ---
   const seenRef = useRef<boolean[]>(new Array(CARD_COUNT).fill(false));
@@ -100,8 +123,24 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
     })),
   ).current;
 
-  const cardW = (gridW - GAP * (COLS - 1)) / COLS;
-  const cardH = cardW * 1.34;
+  /* 카드 크기.
+
+     가로만 보고 키우면 화면이 넓을수록 카드가 커지고, 4줄이 세로로 넘쳐서
+     아랫줄이 화면 밖으로 잘린다. 갤럭시처럼 폭이 넓은 기기에서 특히 심하다.
+     가로 기준과 세로 기준을 각각 구해 **더 작은 쪽**에 맞춘다. */
+  const byWidth = (gridW - GAP * (COLS - 1)) / COLS;
+
+  /** 한 줄에게 돌아가는 세로 길이 */
+  const rowH = gridH > 0 ? (gridH - GAP * ROWS) / ROWS : byWidth * RATIO_MAX;
+
+  // 가장 납작한 카드를 기준으로 가로 한계를 잡는다. 그래야 가로를 최대한 쓴다.
+  const fitW = Math.max(MIN_CARD_W, Math.min(byWidth, rowH / RATIO_MIN));
+
+  // 세로는 남는 자리를 채우되, 너무 길쭉해지지 않게 자른다.
+  const fitH = Math.min(Math.max(rowH, fitW * RATIO_MIN), fitW * RATIO_MAX);
+
+  const cardW = Math.max(MIN_CARD_W, fitW * CARD_SCALE);
+  const cardH = fitH * CARD_SCALE;
 
   const offset = useCallback(
     (i: number) => {
@@ -205,7 +244,8 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const startPlay = useCallback(() => {
     if (finishedRef.current) return;
     flipTo(A.map((_, i) => i), false);
-    setBanner('');
+    setCountText('');                       // 카운트가 끝나면 맞춘 짝 수가 그 자리에 온다
+    setBanner('같은 짝을 찾으세요!');
     lockRef.current = false;
     resumeClock();
   }, [A, flipTo, resumeClock]);
@@ -222,6 +262,18 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
       setDone(new Array(CARD_COUNT).fill(false));
       setBanner(`${SETS[board.setIndex].name} · 외우세요!`);
       dealCards();
+
+      // 다른 게임과 같은 3·2·1 카운트. 언제 덮이는지 알고 외울 수 있다.
+      const steps = Math.round(PREVIEW_MS / 1000);
+      setCountText(String(steps));
+      for (let s = 1; s <= steps; s++) {
+        later(() => {
+          if (finishedRef.current) return;
+          const rest = steps - s;
+          setCountText(rest > 0 ? String(rest) : '!');
+        }, s * 1000);
+      }
+
       later(startPlay, PREVIEW_MS);
     },
     [boards, dealCards, later, startPlay],
@@ -320,27 +372,35 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
 
   return (
     <View testID="game-root" style={s.wrap}>
-      <View style={s.hud}>
-        <Text testID="clock" style={[s.clock, { color: left <= 10000 ? urgent : C.text }]}>
-          {secs}
-        </Text>
-        <View style={s.cell}>
-          <Text style={s.key}>판</Text>
-          <Text testID="board" style={[s.val, { color: C.amber }]}>{boardIdx + 1}</Text>
+      {/* 머리 — 자를 잡아라와 같은 뼈대(큰 숫자 + 아래 안내 한 줄).
+          큰 숫자 한 자리에 카운트다운과 남은 시간을 몰아넣었다.
+          3 · 2 · 1 을 세고 나면 그 자리가 그대로 남은 시간으로 이어진다.
+          카드 12장이 들어갈 자리를 남겨야 해서 자잡기보다 작게 잡았다. */}
+      <View style={s.head}>
+        <View style={s.headRow}>
+          <Text
+            testID="clock"
+            style={[s.big, countText ? s.bigCount : null, { color: !countText && left <= 10000 ? urgent : C.text }]}
+          >
+            {countText || String(secs)}
+          </Text>
+          <View style={s.pairs}>
+            <Text style={s.pairsKey}>맞춘 짝</Text>
+            <Text testID="total" style={s.pairsVal}>{total}</Text>
+          </View>
         </View>
-        <View style={[s.cell, s.right]}>
-          <Text style={s.key}>맞춘 짝</Text>
-          <Text testID="total" style={s.val}>{total}</Text>
-        </View>
+        <Text testID="banner" style={s.sub}>{banner}</Text>
       </View>
 
-      <View style={s.bar}>
-        <View style={[s.barFill, { width: `${(left / limitMs) * 100}%`, backgroundColor: urgent }]} />
-      </View>
-
-      <Text testID="banner" style={s.banner}>{banner}</Text>
-
-      <View style={s.grid} onLayout={(e) => setGridW(e.nativeEvent.layout.width)}>
+      <View
+        style={s.stage}
+        onLayout={(e) => {
+          const l = e.nativeEvent.layout;
+          setGridW(l.width);
+          setGridH(l.height);
+        }}
+      >
+      <View style={[s.grid, { width: COLS * cardW + (COLS - 1) * GAP }]}>
         {board.values.map((val, i) => {
           const a = A[i];
           const Icon = icons[val];
@@ -383,22 +443,29 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
           );
         })}
       </View>
+      </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, width: '100%', paddingHorizontal: 18, backgroundColor: COLORS.bg },
+  wrap: { flex: 1, width: '100%', paddingHorizontal: 10 },
   fill: { flex: 1 },
-  hud: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12 },
-  clock: { fontSize: 38, fontWeight: '800', minWidth: 58 },
-  cell: { paddingLeft: 14, borderLeftWidth: 1, borderLeftColor: C.line },
-  right: { marginLeft: 'auto', alignItems: 'flex-end', borderLeftWidth: 0 },
-  key: { fontSize: 10, letterSpacing: 1.6, color: C.text3, marginBottom: 2 },
-  val: { fontSize: 24, fontWeight: '800', color: C.text },
-  bar: { height: 5, backgroundColor: C.surface, borderRadius: 99, overflow: 'hidden', marginBottom: 14 },
-  barFill: { height: '100%', borderRadius: 99 },
-  banner: { textAlign: 'center', color: C.amber, fontSize: 16, fontWeight: '700', height: 24, marginBottom: 12 },
+
+  /* 아래 세 덩이(머리 · 정보 칸 · 무대)는 자를 잡아라와 같은 크기·간격이다.
+     한 세션에서 두 게임이 이어서 나올 때 화면이 튀지 않게 하려는 것이다. */
+  head: { paddingTop: 20, paddingHorizontal: 10, alignItems: 'center' },
+  /* 큰 숫자는 화면 한가운데에 둔다.
+     맞춘 짝은 오른쪽에 띄워 놓아, 글자 수가 늘어도 가운데가 밀리지 않는다. */
+  headRow: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
+  big: { fontSize: 56, fontWeight: '900', color: C.text, lineHeight: 62, textAlign: 'center' },
+  bigCount: { fontSize: 72, lineHeight: 78 },
+  pairs: { position: 'absolute', right: 0, bottom: 2, alignItems: 'flex-end' },
+  pairsKey: { fontSize: 10, letterSpacing: 1.6, color: C.text3, marginBottom: 2 },
+  pairsVal: { fontSize: 26, fontWeight: '800', color: C.text },
+  sub: { fontSize: 17, fontWeight: '800', color: C.amber, marginTop: 6, height: 22, textAlign: 'center' },
+
+  stage: { flex: 1, marginTop: 8, alignItems: 'center', justifyContent: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   face: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
