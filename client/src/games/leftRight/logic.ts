@@ -1,4 +1,5 @@
 import { createRng } from '../prng'
+import { PENALTY_THRESHOLD } from '../types'
 import type { GameResult } from '../types'
 
 /** 고양이 색. 이 네 가지가 전부다. */
@@ -88,7 +89,23 @@ export const RAMP_AT = 8
  * 20초에 24마리면 한 마리당 0.83초다. 화면에는 노출하지 않는다 —
  * 플레이어에게 보이는 건 "지금 몇 마리 보냈나"뿐이다.
  */
-export const PERFECT_COUNT = 24
+export const PERFECT_COUNT = 34
+
+/**
+ * 통과에 필요한 최소 정답 수.
+ *
+ * 개수만 보면 몇 마리 안 보내고도 통과선을 넘길 수 있었다. 세 판 평균으로
+ * 벌칙을 정하는 게임이라, 한 판을 대충 하고도 통과하면 나머지가 무의미해진다.
+ */
+export const MIN_CORRECT = 20
+
+/**
+ * 통과에 필요한 최소 정확도 (맞힌 수 / 시도한 수).
+ *
+ * 개수 조건만 두면 아무 쪽이나 빠르게 눌러서 개수를 채우는 게 통한다.
+ * 보고 판단하는 게임이려면 얼마나 맞혔는지도 봐야 한다.
+ */
+export const MIN_ACCURACY = 0.6
 
 /**
  * 틀렸을 때 깎는 점수.
@@ -139,8 +156,10 @@ export function makeCats(seed: number, count: number, lineup: Lineup): CatColor[
 }
 
 export interface ComputeResultInput {
-  /** 맞힌 수에서 틀린 수를 뺀 값. 음수일 수 있다. */
-  netScore: number
+  /** 맞힌 수 */
+  correct: number
+  /** 틀린 수 */
+  wrong: number
   /** 마지막 정답까지 걸린 시간(ms) */
   lastCorrectElapsedMs: number
   timeLimitSec: number
@@ -148,25 +167,57 @@ export interface ComputeResultInput {
   finished: boolean
 }
 
+/** 시도한 것 중 맞힌 비율. 한 번도 안 눌렀으면 0이다. */
+export function accuracyOf(correct: number, wrong: number): number {
+  const attempts = correct + wrong
+  return attempts === 0 ? 0 : correct / attempts
+}
+
 /**
- * 개수형 정규화 (설계 §3.5) — `순점수 / 기준 수 × 100`, 0~100으로 clamp.
+ * 정규화 점수(0~100).
  *
- * 많이 틀려 순점수가 음수가 되어도 normalizedScore는 0에서 멈춘다.
- * 계약이 0~100을 요구하기 때문이다 — 화면에 보이는 원점수(score)만 음수로 남는다.
+ * 통과선(PENALTY_THRESHOLD)에 닿으려면 두 관문을 다 넘어야 한다 —
+ * 최소 MIN_CORRECT개를 맞히고, 정확도가 MIN_ACCURACY 이상이어야 한다.
+ * 하나라도 못 넘기면 통과선 아래에서 멈춘다.
  *
+ * 예전에는 순점수(맞힌 수 - 틀린 수)만 기준 수로 나눴다. 그러면 조금만
+ * 해도 통과선을 넘고, 100점도 너무 쉽게 나왔다.
+ *
+ * 두 관문을 넘은 뒤에는 맞힌 개수로 100까지 올라간다.
+ */
+export function normalize(correct: number, wrong: number): number {
+  const accuracy = accuracyOf(correct, wrong)
+
+  if (correct < MIN_CORRECT || accuracy < MIN_ACCURACY) {
+    // 못 넘은 쪽을 기준으로 준다. 둘 중 하나라도 모자라면 비율이 1 미만이라
+    // 통과선 아래에서 자연히 멈춘다 — 따로 자를 필요가 없다.
+    const byCount = correct / MIN_CORRECT
+    const byAccuracy = accuracy / MIN_ACCURACY
+    return Math.max(0, PENALTY_THRESHOLD * Math.min(byCount, byAccuracy))
+  }
+
+  // 통과선 위 — MIN_CORRECT에서 PERFECT_COUNT까지가 40점에서 100점이다.
+  const extra = (correct - MIN_CORRECT) / (PERFECT_COUNT - MIN_CORRECT)
+  return Math.min(100, PENALTY_THRESHOLD + (100 - PENALTY_THRESHOLD) * extra)
+}
+
+/**
  * 시간이 끝나도 그때까지 쌓은 점수는 그대로 인정한다. 0점 처리는 계약 위반이다.
  */
 export function computeResult({
-  netScore,
+  correct,
+  wrong,
   lastCorrectElapsedMs,
   timeLimitSec,
   finished,
 }: ComputeResultInput): GameResult {
+  const netScore = correct - wrong * WRONG_PENALTY
   return {
-    normalizedScore: Math.min(100, Math.max(0, (netScore / PERFECT_COUNT) * 100)),
+    normalizedScore: normalize(correct, wrong),
+    // 화면에 보여주는 값은 그대로 순점수다. 음수일 수 있다.
     score: netScore,
     // 점수를 못 쌓았으면 "가장 느린 사람"으로 둔다. 0으로 두면 꼴찌가 동점 1등이 된다.
-    tiebreakMs: netScore > 0 ? lastCorrectElapsedMs : timeLimitSec * 1000,
+    tiebreakMs: correct > 0 ? lastCorrectElapsedMs : timeLimitSec * 1000,
     finished,
   }
 }

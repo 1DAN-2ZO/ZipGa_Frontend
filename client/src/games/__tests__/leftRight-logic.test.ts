@@ -1,15 +1,19 @@
 import {
+  accuracyOf,
   ALL_COLORS,
   CAT_QUEUE_LENGTH,
   computeResult,
   makeCats,
   makeLineup,
+  MIN_ACCURACY,
+  MIN_CORRECT,
+  normalize,
   PERFECT_COUNT,
   WRONG_PENALTY,
   RAMP_AT,
   sideOf,
 } from '../leftRight/logic'
-import { validateGameResult } from '../types'
+import { PENALTY_THRESHOLD, validateGameResult } from '../types'
 
 const SEEDS = [1, 2, 3, 7, 99, 4242, 12345, 20260827, 31337]
 
@@ -131,39 +135,86 @@ describe('makeCats', () => {
   })
 })
 
-describe('computeResult', () => {
+describe('normalize — 통과 조건', () => {
+  // 통과선은 games/types.ts의 PENALTY_THRESHOLD(40)다.
+  // 두 관문을 다 넘어야 여기에 닿는다: 최소 20개 정답 + 정확도 60% 이상.
+
+  it('20개를 맞히고 정확도 60%면 딱 통과선이다', () => {
+    // 20 맞고 13 틀리면 20/33 = 60.6%
+    expect(normalize(MIN_CORRECT, 13)).toBeGreaterThanOrEqual(PENALTY_THRESHOLD)
+  })
+
+  it('19개까지는 아무리 정확해도 통과선을 못 넘는다', () => {
+    // 하나도 안 틀려 정확도 100%여도 개수가 모자라면 안 된다.
+    expect(normalize(MIN_CORRECT - 1, 0)).toBeLessThan(PENALTY_THRESHOLD)
+  })
+
+  it('개수를 채워도 정확도가 60% 미만이면 통과선을 못 넘는다', () => {
+    // 30 맞고 30 틀리면 50% — 아무 쪽이나 빠르게 누른 경우다.
+    expect(accuracyOf(30, 30)).toBeLessThan(MIN_ACCURACY)
+    expect(normalize(30, 30)).toBeLessThan(PENALTY_THRESHOLD)
+  })
+
+  it('두 조건을 다 못 넘기면 더 부족한 쪽을 따른다', () => {
+    // 10개(절반) · 정확도 50%(기준의 83%) → 개수가 더 모자라다
+    expect(normalize(10, 10)).toBeLessThan(PENALTY_THRESHOLD * 0.6)
+  })
+
+  it('한 번도 안 누르면 0점이다', () => {
+    expect(normalize(0, 0)).toBe(0)
+  })
+
   it('기준 수를 채우면 100점이다', () => {
-    const result = computeResult({
-      netScore: PERFECT_COUNT,
-      lastCorrectElapsedMs: 12000,
-      timeLimitSec: 20,
-      finished: true,
-    })
+    expect(normalize(PERFECT_COUNT, 0)).toBe(100)
+  })
+
+  it('기준 수를 넘겨도 100에서 멈춘다', () => {
+    expect(normalize(PERFECT_COUNT + 20, 0)).toBe(100)
+  })
+
+  it('통과선과 100 사이에서는 개수만큼 올라간다', () => {
+    const low = normalize(MIN_CORRECT + 4, 0)
+    const high = normalize(MIN_CORRECT + 10, 0)
+    expect(low).toBeGreaterThan(PENALTY_THRESHOLD)
+    expect(high).toBeGreaterThan(low)
+    expect(high).toBeLessThan(100)
+  })
+
+  it('언제나 0~100 안에 있다', () => {
+    // 계약이 요구하는 범위다.
+    for (const [c, w] of [[0, 50], [50, 0], [1, 99], [99, 1], [0, 0]]) {
+      const v = normalize(c, w)
+      expect(v).toBeGreaterThanOrEqual(0)
+      expect(v).toBeLessThanOrEqual(100)
+    }
+  })
+})
+
+describe('computeResult', () => {
+  const base = { lastCorrectElapsedMs: 12000, timeLimitSec: 20, finished: true }
+
+  it('기준 수를 채우면 100점이다', () => {
+    const result = computeResult({ correct: PERFECT_COUNT, wrong: 0, ...base })
     expect(result.normalizedScore).toBe(100)
     expect(validateGameResult(result, 'leftRight')).toEqual([])
   })
 
-  it('순점수가 음수여도 정규화는 0에서 멈춘다', () => {
-    // 계약이 0~100을 요구한다. 원점수만 음수로 남는다.
-    const result = computeResult({
-      netScore: -5 * WRONG_PENALTY,
-      lastCorrectElapsedMs: 0,
-      timeLimitSec: 20,
-      finished: true,
-    })
-    expect(result.normalizedScore).toBe(0)
-    expect(result.score).toBeLessThan(0)
+  it('화면에 보이는 원점수는 순점수 그대로다', () => {
+    // 많이 틀리면 음수로 남는다. 정규화만 0에서 멈춘다.
+    const result = computeResult({ correct: 2, wrong: 7, ...base })
+    expect(result.score).toBe(2 - 7 * WRONG_PENALTY)
+    expect(result.normalizedScore).toBeGreaterThanOrEqual(0)
     expect(validateGameResult(result, 'leftRight')).toEqual([])
   })
 
-  it('점수를 못 쌓았으면 가장 느린 사람으로 둔다', () => {
+  it('한 개도 못 맞혔으면 가장 느린 사람으로 둔다', () => {
     // 0으로 두면 꼴찌가 동점 1등이 된다.
-    const result = computeResult({
-      netScore: 0,
-      lastCorrectElapsedMs: 0,
-      timeLimitSec: 20,
-      finished: true,
-    })
+    const result = computeResult({ correct: 0, wrong: 5, ...base })
     expect(result.tiebreakMs).toBe(20000)
+  })
+
+  it('맞힌 게 있으면 마지막 정답 시각을 쓴다', () => {
+    const result = computeResult({ correct: 25, wrong: 2, ...base })
+    expect(result.tiebreakMs).toBe(12000)
   })
 })

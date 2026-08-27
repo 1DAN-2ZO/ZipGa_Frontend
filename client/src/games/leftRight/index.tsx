@@ -68,6 +68,9 @@ function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const startedAtRef = useRef(Date.now())
   const [remainMs, setRemainMs] = useState(timeLimitSec * 1000)
 
+  // 맞힘·틀림을 따로 센다. 정확도(맞힘/시도)가 통과 조건이라 순점수만으로는 안 된다.
+  const correctRef = useRef(0)
+  const wrongRef = useRef(0)
   const netScoreRef = useRef(0)
   const lastCorrectElapsedMsRef = useRef(0)
   const lockedUntilRef = useRef(0)
@@ -81,7 +84,8 @@ function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
     finishedRef.current = true
     onFinishRef.current(
       computeResult({
-        netScore: netScoreRef.current,
+        correct: correctRef.current,
+        wrong: wrongRef.current,
         lastCorrectElapsedMs: lastCorrectElapsedMsRef.current,
         timeLimitSec,
         finished: completed,
@@ -124,6 +128,7 @@ function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
     if (side !== sideOf(lineup, color)) {
       // 틀렸다. 점수를 깎고 이 고양이는 넘긴다. 잠금은 난타를 막는 별개 장치다.
       sound.penalty()
+      wrongRef.current += 1
       netScoreRef.current -= WRONG_PENALTY
       setNetScore(netScoreRef.current)
       lockedUntilRef.current = Date.now() + WRONG_LOCK_MS
@@ -135,6 +140,7 @@ function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
 
     sound.hit()
     lastCorrectElapsedMsRef.current = Date.now() - startedAtRef.current
+    correctRef.current += 1
     netScoreRef.current += 1
     setNetScore(netScoreRef.current)
     setWrongSide(null)
