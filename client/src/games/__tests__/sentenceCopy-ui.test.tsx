@@ -373,3 +373,44 @@ describe('iOS 키보드 회피', () => {
     expect(StyleSheet.flatten(root.props.style).backgroundColor).toBe('#E9E9ED')
   })
 })
+
+/**
+ * 예시 문장과 입력칸 사이가 벌어지고, 키보드가 올라오면 문장 윗줄이
+ * 잘리던 문제.
+ *
+ * 원인이 둘이었다.
+ *  1. 문장 영역(ScrollView)이 남는 공간만큼 자라서 그만큼 아래가 비었다.
+ *     ScrollView 기본값이 flex:1 1 auto 라 가만두면 커진다.
+ *  2. 그 안의 내용을 justifyContent:'center'로 가운데 정렬했는데, 내용이
+ *     넘칠 때 가운데 정렬은 윗부분을 위로 밀어낸다. 그 영역은 스크롤로도
+ *     닿지 못해서 첫 줄이 영영 안 보였다.
+ */
+describe('문장과 입력칸 배치', () => {
+  const stage = () => screen.getByTestId('sentence-stage')
+
+  it('문장 영역이 남는 공간만큼 자라지 않는다', async () => {
+    await renderGame(20260827)
+
+    // 자라면 그만큼 문장과 입력칸 사이가 벌어진다.
+    // ScrollView 기본값(flex:1 1 auto)을 덮어써야 해서 0을 못박는다.
+    const style = StyleSheet.flatten(stage().props.style)
+    expect(style.flexGrow).toBe(0)
+  })
+
+  it('자리가 모자라도 문장이 통째로 사라지지는 않는다', async () => {
+    await renderGame(20260827)
+
+    // flexShrink는 0까지 줄어들 수 있다. 최소 한 줄은 남겨야 한다.
+    const style = StyleSheet.flatten(stage().props.style)
+    expect(style.flexShrink).toBe(1)
+    expect(style.minHeight).toBeGreaterThan(0)
+  })
+
+  it('넘치는 내용을 가운데 정렬하지 않는다', async () => {
+    await renderGame(20260827)
+
+    // 가운데 정렬은 넘친 윗부분을 스크롤로도 못 닿는 곳으로 밀어낸다.
+    const content = StyleSheet.flatten(stage().props.contentContainerStyle)
+    expect(content?.justifyContent).toBeUndefined()
+  })
+})
