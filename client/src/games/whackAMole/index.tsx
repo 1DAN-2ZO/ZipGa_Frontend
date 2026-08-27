@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types'
 import { COLORS } from '../../theme'
-import { buildSpawns, HOLE_COUNT, MOLE_COUNT, netScore, normalize } from './logic'
+import { buildSpawns, countMoles, HOLE_COUNT, netScore, normalize, TIME_LIMIT_SEC } from './logic'
 
 /** 화면 갱신 주기. 스케줄이 절대 시각 기반이라 이 값이 정확도를 좌우하지 않는다. */
 const TICK_MS = 50
@@ -11,11 +11,16 @@ const TICK_MS = 50
 /** 폭탄을 쳤을 때 붉게 번쩍이는 시간. */
 const BLAST_MS = 350
 
-function WhackAMoleGame({ seed, timeLimitSec, onFinish }: GameProps) {
-  const durationMs = timeLimitSec * 1000
+// 제한시간은 넘겨받지 않고 고정한다. 스케줄이 "웨이브 간격 × 웨이브 수"로
+// 짜여서 길이가 바뀌면 등장 리듬이 통째로 달라진다. info.timeLimitSec도 같은
+// 값이라 호스트의 강제 종료 타이머와 어긋나지 않는다.
+function WhackAMoleGame({ seed, onFinish }: GameProps) {
+  const durationMs = TIME_LIMIT_SEC * 1000
 
   const sound = useGameSound()
   const [spawns] = useState(() => buildSpawns(seed, durationMs))
+  // 한 웨이브에 1~2개가 랜덤이라 총 마릿수가 시드마다 다르다. 점수는 이 값으로 나눈다.
+  const [moleCount] = useState(() => countMoles(spawns))
   const [elapsedMs, setElapsedMs] = useState(0)
   const [blastAtMs, setBlastAtMs] = useState<number | null>(null)
 
@@ -49,7 +54,7 @@ function WhackAMoleGame({ seed, timeLimitSec, onFinish }: GameProps) {
     const { moleHits, bombHits } = tally()
     const score = netScore(moleHits, bombHits)
     onFinishRef.current({
-      normalizedScore: normalize(score),
+      normalizedScore: normalize(score, moleCount),
       score,
       tiebreakMs: Date.now() - startedAtRef.current,
       finished: true,
@@ -103,7 +108,7 @@ function WhackAMoleGame({ seed, timeLimitSec, onFinish }: GameProps) {
     <View testID="game-root" style={[styles.container, blasting && styles.containerBlast]}>
       <View style={styles.hud}>
         <Text style={styles.hudText} testID="score">
-          {`${netScore(moleHits, bombHits)} / ${MOLE_COUNT}`}
+          {`${netScore(moleHits, bombHits)} / ${moleCount}`}
         </Text>
         {bombHits > 0 && (
           <Text style={styles.penalty} testID="penalty">
@@ -176,7 +181,7 @@ export const whackAMole: GameModule = {
     name: '두더지 잡기',
     emoji: '🐹',
     desc: '두더지는 잡고 폭탄은 피해서 제한시간 안에 점수 올리기',
-    timeLimitSec: 20,
+    timeLimitSec: TIME_LIMIT_SEC,
   },
   Component: WhackAMoleGame,
 }

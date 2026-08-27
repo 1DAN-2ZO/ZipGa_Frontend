@@ -2,10 +2,10 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import React from 'react'
 import { whackAMole } from '../whackAMole'
 import {
-  BOMB_COUNT,
+  bombCountFor,
   buildSpawns,
+  countMoles,
   HOLE_COUNT,
-  MOLE_COUNT,
   netScore,
   normalize,
   type Spawn,
@@ -107,7 +107,7 @@ describe('whackAMole 화면', () => {
     const at = await strikeInOrder(moles, strike)
     await advance(PAST_END - at)
 
-    expect(result()).toMatchObject({ score: 3, normalizedScore: normalize(3) })
+    expect(result()).toMatchObject({ score: 3, normalizedScore: normalize(3, countMoles(spawns)) })
   })
 
   it('폭탄을 치면 점수가 깎인다', async () => {
@@ -136,7 +136,7 @@ describe('whackAMole 화면', () => {
   it('폭탄만 쳐도 점수가 0 아래로 안 내려간다', async () => {
     const { spawns, strike, result } = await renderGame()
     const bombs = spawns.filter((s) => s.kind === 'bomb')
-    expect(bombs).toHaveLength(BOMB_COUNT)
+    expect(bombs).toHaveLength(bombCountFor(spawns.length))
 
     const at = await strikeInOrder(bombs, strike)
     await advance(PAST_END - at)
@@ -195,6 +195,6 @@ describe('whackAMole 화면', () => {
     expect(r.normalizedScore).toBeLessThanOrEqual(100)
     expect(r.tiebreakMs).toBeGreaterThanOrEqual(0)
     expect(r.score).toBeGreaterThanOrEqual(0)
-    expect(r.score).toBeLessThanOrEqual(MOLE_COUNT)
+    expect(r.score).toBeLessThanOrEqual(countMoles(buildSpawns(99, DURATION)))
   })
 })
