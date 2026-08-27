@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native'
-import { COLORS } from '../../theme'
+import { colors } from '../../theme/colors'
 import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types'
 import {
@@ -244,24 +244,24 @@ function BulletHellGame({ seed, timeLimitSec, onFinish }: GameProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, backgroundColor: COLORS.bg },
+  container: { flex: 1, padding: 24, backgroundColor: colors.background },
   hud: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   hudRight: { alignItems: 'flex-end' },
-  hudLabel: { color: COLORS.textMuted, fontSize: 13, marginBottom: 2 },
-  survived: { color: COLORS.accent, fontSize: 44, fontWeight: '800' },
-  timer: { color: COLORS.text, fontSize: 44, fontWeight: '800' },
-  timerUrgent: { color: COLORS.bad },
+  hudLabel: { color: colors.textMuted, fontSize: 13, marginBottom: 2 },
+  survived: { color: colors.primary, fontSize: 44, fontWeight: '800' },
+  timer: { color: colors.textPrimary, fontSize: 44, fontWeight: '800' },
+  timerUrgent: { color: colors.danger },
   arena: {
     flex: 1,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.white,
     borderRadius: 12,
     overflow: 'hidden',
   },
-  bullet: { position: 'absolute', backgroundColor: COLORS.bad },
-  bulletHoming: { backgroundColor: COLORS.accent, borderWidth: 2, borderColor: COLORS.text },
-  player: { position: 'absolute', backgroundColor: COLORS.text },
-  playerDead: { backgroundColor: COLORS.textFaint },
-  hint: { color: COLORS.textFaint, fontSize: 13, marginTop: 10, textAlign: 'center' },
+  bullet: { position: 'absolute', backgroundColor: colors.danger },
+  bulletHoming: { backgroundColor: colors.secondary, borderWidth: 2, borderColor: colors.primary },
+  player: { position: 'absolute', backgroundColor: colors.textPrimary },
+  playerDead: { backgroundColor: colors.textMuted },
+  hint: { color: colors.textMuted, fontSize: 13, marginTop: 10, textAlign: 'center' },
 })
 
 export const bulletHell: GameModule = {
