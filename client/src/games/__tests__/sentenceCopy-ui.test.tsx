@@ -414,3 +414,118 @@ describe('문장과 입력칸 배치', () => {
     expect(content?.justifyContent).toBeUndefined()
   })
 })
+
+/**
+ * 입력창 옆 보내기 버튼.
+ *
+ * 키보드의 '보내기'는 그대로 두고 하나 더 둔 것이다 — 손이 이미 화면에
+ * 있을 때 키보드까지 내려가 누를 필요가 없게 한다.
+ */
+describe('보내기 버튼', () => {
+  const sendButton = () => screen.getByTestId('send-button')
+
+  const press = async () => {
+    await act(async () => {
+      fireEvent.press(sendButton())
+    })
+  }
+
+  it('버튼으로 보내도 정답이 인정된다', async () => {
+    const seed = 20260827
+    await renderGame(seed)
+    const [first] = sequenceFor(seed)
+
+    await act(async () => {
+      fireEvent.changeText(screen.getByPlaceholderText('여기에 똑같이 입력'), first)
+    })
+    await press()
+
+    expect(screen.getByTestId('correct-count')).toHaveTextContent('1')
+  })
+
+  it('키보드 보내기도 그대로 남는다', async () => {
+    const seed = 20260827
+    await renderGame(seed)
+    const [first] = sequenceFor(seed)
+
+    // 버튼이 생겼다고 기존 경로가 사라지면 안 된다.
+    await typeAndSubmit(first)
+
+    expect(screen.getByTestId('correct-count')).toHaveTextContent('1')
+    const input = screen.getByPlaceholderText('여기에 똑같이 입력')
+    expect(input.props.returnKeyType).toBe('send')
+  })
+
+  /** Pressable 은 disabled 를 호스트로 넘기지 않고 접근성 상태로 알린다. */
+  const isDisabled = () => sendButton().props.accessibilityState?.disabled === true
+
+  it('입력이 비어 있으면 눌리지 않는다', async () => {
+    await renderGame(20260827)
+
+    // 빈 채로 눌러 오답 처리되면 "다시!"만 뜨고 아무 이득이 없다.
+    expect(isDisabled()).toBe(true)
+  })
+
+  it('무언가 치면 눌린다', async () => {
+    await renderGame(20260827)
+
+    await act(async () => {
+      fireEvent.changeText(screen.getByPlaceholderText('여기에 똑같이 입력'), '아')
+    })
+
+    expect(isDisabled()).toBe(false)
+  })
+
+  it('공백만 쳤으면 눌리지 않는다', async () => {
+    await renderGame(20260827)
+
+    await act(async () => {
+      fireEvent.changeText(screen.getByPlaceholderText('여기에 똑같이 입력'), '   ')
+    })
+
+    expect(isDisabled()).toBe(true)
+  })
+
+  it('글자가 줄바꿈되어 잘리지 않는다', async () => {
+    await renderGame(20260827)
+
+    // 앱 폰트(Quicksand)에는 한글이 없어 기기마다 다른 폰트로 대체된다.
+    // 그게 예상보다 넓으면 '보내'/'기' 로 줄이 나뉘어 잘린 것처럼 보인다.
+    const label = screen.getByText('보내기')
+    expect(label.props.numberOfLines).toBe(1)
+  })
+
+  it('좁은 화면에서도 버튼이 쪼그라들지 않는다', async () => {
+    await renderGame(20260827)
+
+    // 입력창이 flex:1 이라, 버튼이 줄어들 수 있으면 글자 자리가 사라진다.
+    const style = StyleSheet.flatten(sendButton().props.style)
+    expect(style.flexShrink).toBe(0)
+    expect(style.minWidth).toBeGreaterThanOrEqual(92)
+  })
+
+  it('입력창이 줄어들 수 있어야 버튼이 화면 밖으로 안 밀린다', async () => {
+    await renderGame(20260827)
+
+    /**
+     * flex 아이템의 min-width 는 기본이 auto 라 내용의 고유 너비 아래로는
+     * 줄어들지 않는다. 입력칸은 그 값이 260px 언저리여서, flex:1 을 줘도
+     * 좁은 화면에서 자리를 안 내놓고 버튼을 오른쪽 밖으로 밀어냈다.
+     * 버튼은 flexShrink 0 이라 밀린 채로 잘려 보인다.
+     */
+    const style = StyleSheet.flatten(
+      screen.getByPlaceholderText('여기에 똑같이 입력').props.style,
+    )
+    expect(style.minWidth).toBe(0)
+    expect(style.flex).toBe(1)
+  })
+
+  it('빈 채로 눌러도 오답 표시가 뜨지 않는다', async () => {
+    await renderGame(20260827)
+
+    await press()
+
+    // 눌려버리면 "다시!"가 떠서 맞게 치고 있는데도 틀린 것처럼 보인다.
+    expect(screen.queryByText('다시! 한 글자도 틀리면 안 돼')).toBeNull()
+  })
+})

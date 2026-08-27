@@ -3,6 +3,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -65,6 +66,15 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
 
   // 키보드가 올라온 폰은 350~450 남는다. 안 올라온 폰은 700 이상이다.
   const compact = keyboardUp || (availableHeight > 0 && availableHeight < COMPACT_HEIGHT)
+
+  /**
+   * 버튼으로 보낼 때 포커스를 되돌리려고 잡아둔다.
+   *
+   * 버튼을 누르면 포커스가 입력창에서 빠지고 키보드가 내려간다. 한 판에
+   * 문장을 연속으로 치는 게임이라 매번 입력창을 다시 눌러야 하면 성립하지
+   * 않는다 — 키보드의 '보내기'를 고쳤던 것과 같은 이유다.
+   */
+  const inputRef = useRef<TextInput>(null)
 
   const correctCountRef = useRef(0)
   const lastCorrectElapsedMsRef = useRef(0)
@@ -133,6 +143,12 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
     } else {
       setIndex(next)
     }
+  }
+
+  /** 옆 버튼으로 보낼 때. 키보드가 내려가지 않게 포커스를 되돌린다. */
+  const handleSendPress = () => {
+    handleSubmit()
+    inputRef.current?.focus()
   }
 
   const handleChangeText = (text: string) => {
@@ -204,7 +220,9 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
         </Text>
       </ScrollView>
 
+      <View style={styles.inputRow}>
       <TextInput
+        ref={inputRef}
         style={[styles.input, isFocused && styles.inputFocused, isWrong && styles.inputWrong]}
         value={input}
         onChangeText={handleChangeText}
@@ -225,8 +243,26 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
         submitBehavior="submit"
         blurOnSubmit={false}
         editable={!isOver}
+        // 키보드의 '보내기'는 그대로 둔다. 옆 버튼은 그걸 대체하는 게 아니라
+        // 손이 화면에 있을 때 쓰라고 하나 더 두는 것이다.
         returnKeyType="send"
       />
+      <Pressable
+        testID="send-button"
+        onPress={handleSendPress}
+        disabled={isOver || input.trim().length === 0}
+        style={({ pressed }) => [
+          styles.send,
+          (isOver || input.trim().length === 0) && styles.sendDisabled,
+          pressed && styles.sendPressed,
+        ]}
+      >
+        {/* numberOfLines: 자리가 빠듯하면 '보내'/'기' 로 줄이 나뉘어 잘린 것처럼 보인다 */}
+        <Text numberOfLines={1} style={styles.sendLabel}>
+          보내기
+        </Text>
+      </Pressable>
+      </View>
       {/* 자리가 급할 때는 틀렸다는 신호만 남긴다. 평소 안내는 접는다 */}
       {(!compact || isWrong) && (
         <Text style={[styles.hint, isWrong && styles.hintWrong]}>
@@ -271,7 +307,40 @@ const styles = StyleSheet.create({
   /** 키보드가 올라온 동안 쓰는 축소본 */
   countCompact: { fontSize: 26 },
   sentenceCompact: { fontSize: 24, lineHeight: 33 },
+  /** 입력창과 보내기 버튼을 한 줄에 놓는다 */
+  inputRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+  /**
+   * minWidth·flexShrink 가 있는 이유:
+   *
+   * 여백만으로 잡으면 글자 폭에 딱 붙는다. 앱 폰트(Quicksand)는 한글이 없어
+   * 기기마다 다른 한글 폰트로 대체되는데, 그게 웹에서 재던 것보다 넓으면
+   * 그대로 줄이 나뉘어 잘린 것처럼 보인다. 여유를 미리 넣어둔다.
+   * flexShrink 0 은 좁은 화면에서 입력창에 밀려 쪼그라들지 않게 한다.
+   */
+  send: {
+    flexShrink: 0,
+    minWidth: 92,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+  },
+  sendDisabled: { backgroundColor: colors.divider },
+  sendPressed: { opacity: 0.7 },
+  sendLabel: { color: colors.white, fontSize: 16, fontWeight: '700' },
   input: {
+    // 남는 너비를 다 쓰고 버튼은 글자만큼만 차지한다
+    flex: 1,
+    /**
+     * minWidth 0 이 없으면 오른쪽 버튼이 화면 밖으로 밀린다.
+     *
+     * flex 아이템의 min-width 는 기본이 auto 라 내용의 고유 너비 아래로는
+     * 줄어들지 않는다. 입력칸은 그 값이 260px 언저리라, 좁은 화면에서
+     * flex:1 을 줘도 자리를 안 내놓고 버튼을 오른쪽으로 밀어냈다.
+     * 버튼은 flexShrink 0 이라 밀린 채로 잘려 보인다.
+     */
+    minWidth: 0,
     backgroundColor: colors.white,
     borderRadius: 12,
     borderWidth: 2,
