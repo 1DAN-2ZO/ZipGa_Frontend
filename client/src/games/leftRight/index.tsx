@@ -10,13 +10,11 @@ import {
   CAT_QUEUE_LENGTH,
   COLOR_LABELS,
   computeResult,
-  EASY_COLORS,
-  HARD_COLORS,
-  LEFT_COLORS,
+  ALL_COLORS,
+  makeLineup,
   makeCats,
   QUEUE_VISIBLE,
   RAMP_AT,
-  RIGHT_COLORS,
   sideOf,
   WRONG_LOCK_MS,
   WRONG_PENALTY,
@@ -55,7 +53,10 @@ function TimerBar({ ratio }: { ratio: number }) {
 function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const sound = useGameSound()
   // 시작할 때 줄을 통째로 확정한다. 조작이 빠르든 느리든 모두 같은 순서를 본다.
-  const cats = useMemo(() => makeCats(seed, CAT_QUEUE_LENGTH), [seed])
+  // 색이 어느 쪽으로 가는지도 판마다 시드로 정해진다. 고정이면 몇 판 만에
+  // 문지기를 안 보고 손이 먼저 나간다.
+  const lineup = useMemo(() => makeLineup(seed), [seed])
+  const cats = useMemo(() => makeCats(seed, CAT_QUEUE_LENGTH, lineup), [seed, lineup])
 
   const [catIndex, setCatIndex] = useState(0)
   const [netScore, setNetScore] = useState(0)
@@ -114,13 +115,13 @@ function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
 
   /** 네 색이 나오기 시작했는지. 문지기도 여기에 맞춰 늘어난다. */
   const isHardPhase = catIndex >= RAMP_AT
-  const gateColors = isHardPhase ? HARD_COLORS : EASY_COLORS
+  const gateColors = isHardPhase ? ALL_COLORS : lineup.easy
 
   const send = (side: Side) => {
     if (isOver || finishedRef.current) return
     if (Date.now() < lockedUntilRef.current) return
 
-    if (side !== sideOf(color)) {
+    if (side !== sideOf(lineup, color)) {
       // 틀렸다. 점수를 깎고 이 고양이는 넘긴다. 잠금은 난타를 막는 별개 장치다.
       sound.penalty()
       netScoreRef.current -= WRONG_PENALTY
@@ -148,7 +149,7 @@ function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
   )
 
   const gatesOf = (side: Side) =>
-    (side === 'left' ? LEFT_COLORS : RIGHT_COLORS).filter((c) => gateColors.includes(c))
+    (side === 'left' ? lineup.left : lineup.right).filter((c) => gateColors.includes(c))
 
   const renderButton = (side: Side, glyph: string) => (
     <Pressable

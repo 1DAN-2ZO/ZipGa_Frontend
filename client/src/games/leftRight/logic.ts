@@ -7,22 +7,58 @@ export type CatColor = 'black' | 'red' | 'white' | 'blue'
 /** 고양이를 보낼 방향 */
 export type Side = 'left' | 'right'
 
+/** 쓰는 색 전부. 좌우 배분은 판마다 시드로 정해진다. */
+export const ALL_COLORS: readonly CatColor[] = ['black', 'red', 'white', 'blue']
+
 /**
- * 왼쪽 문지기의 색.
+ * 이 판의 색 배치.
  *
- * 매핑은 시드와 무관하게 고정이고 화면 양옆에 항상 세워둔다.
- * 외우는 게임이 아니라 보고 판단하는 게임이어야 하기 때문이다.
+ * 예전에는 검정·빨강이 항상 왼쪽, 흰색·파랑이 항상 오른쪽으로 고정이었다.
+ * 그러면 몇 판만 해도 색만 보고 손이 먼저 나가서, 문지기를 볼 이유가 없어진다.
+ * 판마다 섞으면 매번 문지기를 읽고 판단하게 된다 — 화면 양옆에 색과 이름을
+ * 항상 세워두므로 외우는 게임이 되지는 않는다.
  */
-export const LEFT_COLORS: readonly CatColor[] = ['black', 'red']
+export interface Lineup {
+  /** 왼쪽으로 보내야 하는 두 색 */
+  left: readonly CatColor[]
+  /** 오른쪽으로 보내야 하는 두 색 */
+  right: readonly CatColor[]
+  /**
+   * 초반에 쓰는 두 색.
+   *
+   * 반드시 좌우에서 하나씩 뽑는다. 같은 쪽 두 색이 걸리면 앞의 여덟 마리가
+   * 전부 한 방향이라 좌우 감각을 잡는 구간이 통째로 무의미해진다.
+   */
+  easy: readonly CatColor[]
+}
 
-/** 오른쪽 문지기의 색 */
-export const RIGHT_COLORS: readonly CatColor[] = ['white', 'blue']
+/**
+ * 시드로 이 판의 색 배치를 정한다. 좌우는 항상 2:2다.
+ *
+ * 한쪽이 3색이 되면 그 판은 한 방향으로 쏠려서 찍기가 유리해진다.
+ *
+ * 살짝 비튼 시드를 쓰는 이유: makeCats도 같은 시드를 쓰는데 둘 다 같은
+ * 난수 흐름을 처음부터 읽으면 배치와 고양이 순서가 얽힌다.
+ * (spotDiff의 PHOTO_ORDER_SALT와 같은 이유)
+ */
+const LINEUP_SALT = 0x27d4eb2f
 
-/** 초반에 쓰는 두 색. 좌우가 한눈에 갈린다. */
-export const EASY_COLORS: readonly CatColor[] = ['black', 'white']
+export function makeLineup(seed: number): Lineup {
+  const shuffled = createRng(seed ^ LINEUP_SALT).shuffle(ALL_COLORS)
+  const left = [shuffled[0], shuffled[1]]
+  const right = [shuffled[2], shuffled[3]]
+  return {
+    left,
+    right,
+    // 좌우에서 하나씩 — 초반 두 색은 반드시 서로 반대쪽이다
+    easy: [left[0], right[0]],
+  }
+}
 
-/** 후반에 쓰는 네 색 */
-export const HARD_COLORS: readonly CatColor[] = [...LEFT_COLORS, ...RIGHT_COLORS]
+/** 그 색이 이 판에서 가야 할 쪽. */
+export function sideOf(lineup: Lineup, color: CatColor): Side {
+  return lineup.left.includes(color) ? 'left' : 'right'
+}
 
 /**
  * 화면에 띄우는 색 이름.
@@ -86,21 +122,18 @@ export const CAT_QUEUE_LENGTH = 120
  */
 export const QUEUE_VISIBLE = 8
 
-/** 그 색 고양이가 가야 할 쪽. */
-export function sideOf(color: CatColor): Side {
-  return LEFT_COLORS.includes(color) ? 'left' : 'right'
-}
-
 /**
  * 시드에서 고양이 줄을 통째로 만든다.
  *
  * 난수 흐름 하나로 끝까지 뽑는다. 마리마다 시드를 새로 만들면
  * 이웃한 시드끼리 패턴이 생겨 좌우가 규칙적으로 반복될 수 있다.
+ *
+ * 쓰는 색은 이 판의 배치에서 가져온다 — 초반은 easy 두 색, 그 뒤로 네 색.
  */
-export function makeCats(seed: number, count: number): CatColor[] {
+export function makeCats(seed: number, count: number, lineup: Lineup): CatColor[] {
   const rng = createRng(seed)
   return Array.from({ length: count }, (_, index) => {
-    const palette = index < RAMP_AT ? EASY_COLORS : HARD_COLORS
+    const palette = index < RAMP_AT ? lineup.easy : ALL_COLORS
     return palette[rng.int(0, palette.length - 1)]
   })
 }

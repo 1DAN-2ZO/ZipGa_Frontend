@@ -9,6 +9,8 @@ import {
   QUEUE_VISIBLE,
   makeCats,
   RAMP_AT,
+  ALL_COLORS,
+  makeLineup,
   sideOf,
   WRONG_LOCK_MS,
   type Side,
@@ -57,9 +59,9 @@ const asFill = (color: string) => processColor(color)
 
 /** 앞에서부터 count마리를 정답으로 흘려보낸다 */
 const sendCorrectly = async (seed: number, count: number) => {
-  const cats = makeCats(seed, CAT_QUEUE_LENGTH)
+  const cats = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
   for (let i = 0; i < count; i++) {
-    await send(sideOf(cats[i]))
+    await send(sideOf(makeLineup(seed), cats[i]))
   }
 }
 
@@ -76,7 +78,7 @@ describe('leftRight 모듈 정보', () => {
 describe('leftRight 화면', () => {
   it('시드가 정한 첫 고양이를 보여준다', async () => {
     const seed = 4242
-    const [first] = makeCats(seed, CAT_QUEUE_LENGTH)
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     await renderGame(seed)
 
     expect(shownColor()).toHaveTextContent(COLOR_LABELS[first])
@@ -85,23 +87,26 @@ describe('leftRight 화면', () => {
   it('고양이를 그 색으로 칠한다', async () => {
     // 색이 유일한 단서인 게임이다. 그림이 색과 따로 놀면 라벨을 읽는 게임이 된다.
     const seed = 4242
-    const [first] = makeCats(seed, CAT_QUEUE_LENGTH)
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     await renderGame(seed)
 
     expect(furOf('queue-fur-0')).toBe(asFill(FUR[first]))
   })
 
   it('문지기도 자기 색으로 칠한다', async () => {
-    await renderGame()
+    // 어느 색이 어느 쪽에 서는지는 판마다 다르다. 배치에서 가져와 확인한다.
+    const seed = 7
+    const [easyA, easyB] = makeLineup(seed).easy
+    await renderGame(seed)
 
-    expect(furOf('gate-black-fur')).toBe(asFill(FUR.black))
-    expect(furOf('gate-white-fur')).toBe(asFill(FUR.white))
+    expect(furOf(`gate-${easyA}-fur`)).toBe(asFill(FUR[easyA]))
+    expect(furOf(`gate-${easyB}-fur`)).toBe(asFill(FUR[easyB]))
   })
 
   it('다음에 올 고양이들을 미리 보여준다', async () => {
     // 뒤에 뭐가 오는지 보여야 손이 미리 준비된다. 한 마리씩만 보이면 반응속도 대결이 된다.
     const seed = 4242
-    const cats = makeCats(seed, CAT_QUEUE_LENGTH)
+    const cats = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     await renderGame(seed)
 
     expect(screen.getAllByTestId(/^queue-fur-/)).toHaveLength(QUEUE_VISIBLE)
@@ -112,10 +117,10 @@ describe('leftRight 화면', () => {
 
   it('한 마리 보내면 대기줄이 한 칸 당겨진다', async () => {
     const seed = 4242
-    const cats = makeCats(seed, CAT_QUEUE_LENGTH)
+    const cats = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     await renderGame(seed)
 
-    await send(sideOf(cats[0]))
+    await send(sideOf(makeLineup(seed), cats[0]))
 
     expect(furOf('queue-fur-0')).toBe(asFill(FUR[cats[1]]))
     expect(furOf('queue-fur-1')).toBe(asFill(FUR[cats[2]]))
@@ -147,12 +152,17 @@ describe('leftRight 화면', () => {
   })
 
   it('초반에는 쉬운 두 색 문지기만 세운다', async () => {
-    await renderGame()
+    const seed = 7
+    const lineup = makeLineup(seed)
+    await renderGame(seed)
 
-    expect(screen.getByTestId('gate-black')).toBeTruthy()
-    expect(screen.getByTestId('gate-white')).toBeTruthy()
-    expect(screen.queryByTestId('gate-red')).toBeNull()
-    expect(screen.queryByTestId('gate-blue')).toBeNull()
+    for (const color of lineup.easy) {
+      expect(screen.getByTestId(`gate-${color}`)).toBeTruthy()
+    }
+    // 나머지 두 색은 아직 안 나온다
+    for (const color of ALL_COLORS.filter((c) => !lineup.easy.includes(c))) {
+      expect(screen.queryByTestId(`gate-${color}`)).toBeNull()
+    }
   })
 
   it('색이 늘어나면 문지기 넷을 모두 세운다', async () => {
@@ -167,31 +177,31 @@ describe('leftRight 화면', () => {
 
   it('알맞은 쪽으로 보내면 점수가 1 오른다', async () => {
     const seed = 11
-    const [first] = makeCats(seed, CAT_QUEUE_LENGTH)
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     await renderGame(seed)
     expect(score()).toBe(0)
 
-    await send(sideOf(first))
+    await send(sideOf(makeLineup(seed), first))
 
     expect(score()).toBe(1)
   })
 
   it('보내고 나면 다음 고양이가 나온다', async () => {
     const seed = 11
-    const [first, second] = makeCats(seed, CAT_QUEUE_LENGTH)
+    const [first, second] = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     await renderGame(seed)
 
-    await send(sideOf(first))
+    await send(sideOf(makeLineup(seed), first))
 
     expect(shownColor()).toHaveTextContent(COLOR_LABELS[second])
   })
 
   it('틀린 쪽으로 보내면 점수가 1 깎인다', async () => {
     const seed = 11
-    const [first] = makeCats(seed, CAT_QUEUE_LENGTH)
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     await renderGame(seed)
 
-    await send(sideOf(first) === 'left' ? 'right' : 'left')
+    await send(sideOf(makeLineup(seed), first) === 'left' ? 'right' : 'left')
 
     expect(score()).toBe(-1)
   })
@@ -199,11 +209,11 @@ describe('leftRight 화면', () => {
   it('점수는 0 밑으로도 내려간다', async () => {
     // 찍어서 반타작하는 게 이득이 되지 않으려면 마이너스가 실제로 쌓여야 한다.
     const seed = 11
-    const cats = makeCats(seed, CAT_QUEUE_LENGTH)
+    const cats = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     await renderGame(seed)
 
     for (let i = 0; i < 3; i++) {
-      await send(sideOf(cats[i]) === 'left' ? 'right' : 'left')
+      await send(sideOf(makeLineup(seed), cats[i]) === 'left' ? 'right' : 'left')
       await advanceBy(WRONG_LOCK_MS)
     }
 
@@ -212,10 +222,10 @@ describe('leftRight 화면', () => {
 
   it('마이너스로 끝나도 정규화 점수는 0으로 막는다', async () => {
     const seed = 11
-    const cats = makeCats(seed, CAT_QUEUE_LENGTH)
+    const cats = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     const onFinish = await renderGame(seed)
 
-    await send(sideOf(cats[0]) === 'left' ? 'right' : 'left')
+    await send(sideOf(makeLineup(seed), cats[0]) === 'left' ? 'right' : 'left')
     await advanceBy(TIME_LIMIT * 1000)
 
     const result = onFinish.mock.calls[0][0]
@@ -225,33 +235,33 @@ describe('leftRight 화면', () => {
 
   it('틀려도 그 고양이는 넘어가고 다음 고양이가 나온다', async () => {
     const seed = 11
-    const [first, second] = makeCats(seed, CAT_QUEUE_LENGTH)
+    const [first, second] = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     await renderGame(seed)
 
-    await send(sideOf(first) === 'left' ? 'right' : 'left')
+    await send(sideOf(makeLineup(seed), first) === 'left' ? 'right' : 'left')
 
     expect(shownColor()).toHaveTextContent(COLOR_LABELS[second])
   })
 
   it('틀리면 잠깐 멈춰서 좌우를 마구 두드릴 수 없다', async () => {
     const seed = 11
-    const cats = makeCats(seed, CAT_QUEUE_LENGTH)
+    const cats = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     await renderGame(seed)
 
-    await send(sideOf(cats[0]) === 'left' ? 'right' : 'left')
-    await send(sideOf(cats[1])) // 잠긴 동안이라 무시된다
+    await send(sideOf(makeLineup(seed), cats[0]) === 'left' ? 'right' : 'left')
+    await send(sideOf(makeLineup(seed), cats[1])) // 잠긴 동안이라 무시된다
 
     expect(score()).toBe(-1)
   })
 
   it('잠금이 풀리면 다시 보낼 수 있다', async () => {
     const seed = 11
-    const cats = makeCats(seed, CAT_QUEUE_LENGTH)
+    const cats = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     await renderGame(seed)
 
-    await send(sideOf(cats[0]) === 'left' ? 'right' : 'left')
+    await send(sideOf(makeLineup(seed), cats[0]) === 'left' ? 'right' : 'left')
     await advanceBy(WRONG_LOCK_MS)
-    await send(sideOf(cats[1]))
+    await send(sideOf(makeLineup(seed), cats[1]))
 
     expect(score()).toBe(0) // -1 에서 +1
   })
@@ -280,11 +290,11 @@ describe('leftRight 화면', () => {
 
   it('끝난 뒤에 눌러도 맞힌 수가 오르지 않는다', async () => {
     const seed = 11
-    const [first] = makeCats(seed, CAT_QUEUE_LENGTH)
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     await renderGame(seed)
 
     await advanceBy(TIME_LIMIT * 1000)
-    await send(sideOf(first))
+    await send(sideOf(makeLineup(seed), first))
 
     expect(score()).toBe(0)
   })
@@ -301,7 +311,7 @@ describe('leftRight 화면', () => {
   it('여러 명이 같은 시드로 들어오면 전원이 같은 고양이를 받는다', async () => {
     const seed = 555
     const playerCount = 3
-    const [first] = makeCats(seed, CAT_QUEUE_LENGTH)
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
     await render(
       <>
         {Array.from({ length: playerCount }, (_, i) => (
