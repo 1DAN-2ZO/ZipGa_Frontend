@@ -1,39 +1,94 @@
+import { PENALTY_THRESHOLD } from '../types'
 import {
   BOMB_COUNT,
   buildSpawns,
+  countMoles,
   HOLE_COUNT,
-  MOLE_COUNT,
+  MAX_PER_WAVE,
+  MIN_PER_WAVE,
   netScore,
   normalize,
-  SPAWN_COUNT,
+  PASS_RATIO,
+  TIME_LIMIT_SEC,
+  VISIBLE_MAX_MS,
+  VISIBLE_MIN_MS,
+  WAVE_INTERVAL_MS,
 } from '../whackAMole/logic'
 
-const DURATION = 20_000
+const DURATION = TIME_LIMIT_SEC * 1000
+const SEEDS = [1, 2, 3, 99, 12345, 777777, 2024]
 
 describe('상수', () => {
-  it('등장물은 두더지와 폭탄의 합이다', () => {
-    expect(SPAWN_COUNT).toBe(MOLE_COUNT + BOMB_COUNT)
+  it('제한시간은 20초로 고정이다', () => {
+    expect(TIME_LIMIT_SEC).toBe(20)
+  })
+
+  it('한 번에 1~2마리가 나온다', () => {
+    expect(MIN_PER_WAVE).toBe(1)
+    expect(MAX_PER_WAVE).toBe(2)
+  })
+
+  it('표시 시간은 0.5~1초다', () => {
+    expect(VISIBLE_MIN_MS).toBe(500)
+    expect(VISIBLE_MAX_MS).toBe(1000)
   })
 
   it('폭탄은 5개다', () => {
     expect(BOMB_COUNT).toBe(5)
   })
-
-  it('등장 간격이 1초가 되도록 총량이 제한시간과 맞는다', () => {
-    // 간격이 벌어지면 게임이 늘어지고, 좁아지면 몰아친다.
-    expect(DURATION / SPAWN_COUNT).toBe(1000)
-  })
 })
 
 describe('buildSpawns', () => {
-  it('정해진 수만큼 만든다', () => {
-    expect(buildSpawns(123, DURATION)).toHaveLength(SPAWN_COUNT)
+  it('웨이브마다 1~2개가 같은 순간에 나온다', () => {
+    for (const seed of SEEDS) {
+      const byShowAt = new Map<number, number>()
+      for (const s of buildSpawns(seed, DURATION)) {
+        byShowAt.set(s.showAtMs, (byShowAt.get(s.showAtMs) ?? 0) + 1)
+      }
+      for (const count of byShowAt.values()) {
+        expect(count).toBeGreaterThanOrEqual(MIN_PER_WAVE)
+        expect(count).toBeLessThanOrEqual(MAX_PER_WAVE)
+      }
+    }
   })
 
-  it('폭탄과 두더지 개수가 정확하다', () => {
-    const spawns = buildSpawns(123, DURATION)
-    expect(spawns.filter((s) => s.kind === 'bomb')).toHaveLength(BOMB_COUNT)
-    expect(spawns.filter((s) => s.kind === 'mole')).toHaveLength(MOLE_COUNT)
+  it('두 마리가 같이 나오는 웨이브가 실제로 있다', () => {
+    // 항상 1마리씩이면 "1~2 랜덤"이 아니다.
+    const counts = new Map<number, number>()
+    for (const s of buildSpawns(4242, DURATION)) {
+      counts.set(s.showAtMs, (counts.get(s.showAtMs) ?? 0) + 1)
+    }
+    expect([...counts.values()]).toContain(2)
+  })
+
+  it('웨이브 수는 제한시간을 간격으로 나눈 값이다', () => {
+    // 간격이 벌어지면 게임이 늘어지고, 좁아지면 몰아친다.
+    for (const seed of SEEDS) {
+      const moments = new Set(buildSpawns(seed, DURATION).map((s) => s.showAtMs))
+      expect(moments.size).toBe(DURATION / WAVE_INTERVAL_MS)
+    }
+  })
+
+  it('표시 시간이 0.5~1초 안에 있다', () => {
+    for (const seed of SEEDS) {
+      for (const s of buildSpawns(seed, DURATION)) {
+        const visible = s.hideAtMs - s.showAtMs
+        expect(visible).toBeGreaterThanOrEqual(VISIBLE_MIN_MS)
+        expect(visible).toBeLessThanOrEqual(VISIBLE_MAX_MS)
+      }
+    }
+  })
+
+  it('폭탄은 정확히 정해진 수만큼이다', () => {
+    for (const seed of SEEDS) {
+      expect(buildSpawns(seed, DURATION).filter((s) => s.kind === 'bomb')).toHaveLength(BOMB_COUNT)
+    }
+  })
+
+  it('두더지 수는 시드마다 다를 수 있다', () => {
+    // 이래서 점수를 고정값이 아니라 실제로 나온 수로 나눈다.
+    const totals = new Set(SEEDS.map((seed) => countMoles(buildSpawns(seed, DURATION))))
+    expect(totals.size).toBeGreaterThan(1)
   })
 
   it('같은 시드는 완전히 같은 스케줄을 만든다', () => {
@@ -42,14 +97,6 @@ describe('buildSpawns', () => {
 
   it('다른 시드는 다른 스케줄을 만든다', () => {
     expect(buildSpawns(1, DURATION)).not.toEqual(buildSpawns(2, DURATION))
-  })
-
-  it('시드가 다르면 폭탄 위치도 달라진다', () => {
-    const bombsOf = (seed: number) =>
-      buildSpawns(seed, DURATION)
-        .map((s, i) => (s.kind === 'bomb' ? i : -1))
-        .filter((i) => i >= 0)
-    expect(bombsOf(11)).not.toEqual(bombsOf(22))
   })
 
   it('구멍은 항상 격자 범위 안이다', () => {
@@ -68,16 +115,18 @@ describe('buildSpawns', () => {
   })
 
   it('모두 제한시간 안에 나왔다 들어간다', () => {
-    for (const s of buildSpawns(9, DURATION)) {
-      expect(s.showAtMs).toBeGreaterThanOrEqual(0)
-      expect(s.hideAtMs).toBeLessThanOrEqual(DURATION)
-      expect(s.hideAtMs).toBeGreaterThan(s.showAtMs)
+    for (const seed of SEEDS) {
+      for (const s of buildSpawns(seed, DURATION)) {
+        expect(s.showAtMs).toBeGreaterThanOrEqual(0)
+        expect(s.hideAtMs).toBeLessThanOrEqual(DURATION)
+        expect(s.hideAtMs).toBeGreaterThan(s.showAtMs)
+      }
     }
   })
 
   it('같은 구멍에서 동시에 두 개가 나오지 않는다', () => {
     // 겹치면 하나는 칠 수가 없다. 폭탄과 두더지가 겹치면 특히 억울하다.
-    for (const seed of [1, 2, 3, 99, 12345, 777777]) {
+    for (const seed of SEEDS) {
       const spawns = buildSpawns(seed, DURATION)
       for (let i = 0; i < spawns.length; i++) {
         for (let j = i + 1; j < spawns.length; j++) {
@@ -95,14 +144,6 @@ describe('buildSpawns', () => {
       expect(s.hideAtMs).toBeLessThanOrEqual(5_000)
     }
   })
-
-  it('후반 등장물이 초반보다 빨리 사라진다', () => {
-    const spawns = buildSpawns(2024, DURATION)
-    const dur = (s: (typeof spawns)[number]) => s.hideAtMs - s.showAtMs
-    const early = spawns.slice(0, 4).reduce((n, s) => n + dur(s), 0) / 4
-    const late = spawns.slice(-4).reduce((n, s) => n + dur(s), 0) / 4
-    expect(late).toBeLessThan(early)
-  })
 })
 
 describe('netScore', () => {
@@ -118,37 +159,49 @@ describe('netScore', () => {
     expect(netScore(1, 3)).toBe(0)
     expect(netScore(0, 3)).toBe(0)
   })
-
-  it('폭탄 셋을 다 쳐도 만회할 수 있다', () => {
-    // -2 였다면 12마리 중 만회가 불가능해진다.
-    expect(netScore(MOLE_COUNT, BOMB_COUNT)).toBe(MOLE_COUNT - BOMB_COUNT)
-  })
 })
 
 describe('normalize', () => {
+  const MOLES = 25
+
   it('전부 잡으면 100이다', () => {
-    expect(normalize(MOLE_COUNT)).toBe(100)
+    expect(normalize(MOLES, MOLES)).toBe(100)
   })
 
   it('하나도 못 잡으면 0이다', () => {
-    expect(normalize(0)).toBe(0)
+    expect(normalize(0, MOLES)).toBe(0)
   })
 
   it('절반 잡으면 50이다', () => {
-    expect(normalize(MOLE_COUNT / 2)).toBe(50)
+    expect(normalize(MOLES / 2, MOLES)).toBe(50)
   })
 
   it('음수는 0으로 자른다', () => {
-    expect(normalize(-3)).toBe(0)
+    expect(normalize(-3, MOLES)).toBe(0)
   })
 
   it('마리 수를 초과해도 100을 넘지 않는다', () => {
-    expect(normalize(MOLE_COUNT + 10)).toBe(100)
+    expect(normalize(MOLES + 10, MOLES)).toBe(100)
   })
 
-  it('기준선 40점을 넘으려면 전체의 40%가 필요하다', () => {
-    const needed = Math.ceil(MOLE_COUNT * 0.4)
-    expect(normalize(needed - 1)).toBeLessThan(40)
-    expect(normalize(needed)).toBeGreaterThanOrEqual(40)
+  it('두더지가 안 나왔으면 0이다', () => {
+    // 0으로 나누면 NaN이 나가고 계약(0~100)이 깨진다.
+    expect(normalize(0, 0)).toBe(0)
+  })
+
+  it('나온 두더지의 40%를 잡으면 기준선에 정확히 닿는다', () => {
+    // 총량이 시드마다 달라도 통과선은 항상 "나온 것의 40%"다.
+    for (const moles of [15, 22, 25, 31, 40]) {
+      expect(normalize(moles * PASS_RATIO, moles)).toBeCloseTo(PENALTY_THRESHOLD, 10)
+    }
+  })
+
+  it('실제 스케줄에서도 40% 잡으면 통과한다', () => {
+    for (const seed of SEEDS) {
+      const moles = countMoles(buildSpawns(seed, DURATION))
+      const needed = Math.ceil(moles * PASS_RATIO)
+      expect(normalize(needed - 1, moles)).toBeLessThan(PENALTY_THRESHOLD)
+      expect(normalize(needed, moles)).toBeGreaterThanOrEqual(PENALTY_THRESHOLD)
+    }
   })
 })
