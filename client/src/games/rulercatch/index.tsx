@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { GestureResponderEvent } from 'react-native';
+import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types';
+import { COLORS } from '../../theme';
 import {
   COUNTDOWN_MS,
   EXIT_MS,
@@ -45,8 +47,8 @@ const C = {
   ink: '#0B3FA8',
   slot: '#96CFFA', slotOn: '#DCEEFF',
   wood: '#A9601F', woodEdge: '#7E4413', tick: '#FFF3D0',
-  white: '#FFFFFF',
-  bad: '#FF5B4A',
+  white: COLORS.surface,
+  bad: COLORS.bad,
 };
 
 const BAR_H = 11;
@@ -74,12 +76,13 @@ function Outlined({ text, size, color }: { text: string; size: number; color?: s
           {text}
         </Text>
       ))}
-      <Text style={[base, st.stackText, { color: color ?? C.white }]}>{text}</Text>
+      <Text style={[base, st.stackText, { color: color ?? C.sky }]}>{text}</Text>
     </View>
   );
 }
 
 function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
+  const sound = useGameSound()
   const limitMs = timeLimitSec * 1000;
   const waits = useMemo(() => makeWaits(seed), [seed]);
 
@@ -177,6 +180,9 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
     else if (kind === 'miss') pos.setValue(stageH + rulerH);
 
     setBig(String(Math.round(running(roundsRef.current))));
+    if (kind === 'caught') sound.hit();
+    else sound.miss();
+
     if (kind === 'caught') {
       setSub('좋아요!');
       setReadout({ text: `${cm.toFixed(2)}cm`, bad: false });
@@ -284,7 +290,11 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
      안전망까지 그 안에 두면 측정이 늦거나 실패했을 때 게임이 영영 안 끝난다.
      호스트가 onFinish 만 기다리므로 그 경우 세션 전체가 멈춘다. */
   useEffect(() => {
-    const guard = setTimeout(() => finish(false), limitMs);
+    // true인 이유: 제한시간을 다 쓴 것은 정상 종료다. false는 중도 이탈
+    // (앱 종료·화면 이탈)만 뜻한다 (games/types.ts GameResult 주석).
+    // 여기서 false를 주면 5판을 다 못 채운 사람이 전부 이탈로 기록됐다.
+    // 그때까지 잡은 점수는 record가 이미 쌓아뒀으므로 그대로 나간다.
+    const guard = setTimeout(() => finish(true), limitMs);
     return () => clearTimeout(guard);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed, limitMs]);
@@ -312,7 +322,7 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const slotW = 1 / ROUNDS;
 
   return (
-    <Pressable style={st.wrap} onPressIn={tap} accessibilityLabel="떨어지는 자를 터치하세요">
+    <Pressable testID="game-root" style={st.wrap} onPressIn={tap} accessibilityLabel="떨어지는 자를 터치하세요">
       <View style={st.head}>
         <Outlined text={big} size={phase === 'count' ? 104 : 88} />
         <View style={st.subWrap}><Outlined text={sub} size={19} /></View>
@@ -337,8 +347,10 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
         <View style={[st.caret, { left: `${(roundIdx + 0.5) * slotW * 100}%` }]} />
       </View>
 
+      {/* testID: 무대 높이를 받기 전에는 라운드가 시작되지 않는다. 테스트에서
+          onLayout을 쏘려면 이 View를 집을 수 있어야 한다 */}
       <View
-        style={st.stage}
+        testID="stage" style={st.stage}
         onLayout={(e) => {
           const l = e.nativeEvent.layout;
           setStageH(l.height);
@@ -362,7 +374,7 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
         )}
         {readout && (
           <View style={st.readout} pointerEvents="none">
-            <Outlined text={readout.text} size={24} color={readout.bad ? '#FFD9D4' : C.white} />
+            <Outlined text={readout.text} size={24} color={readout.bad ? C.bad : C.sky} />
           </View>
         )}
         <View style={[st.bar, st.barBot]} />
@@ -375,7 +387,14 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
 const TARGET_TOTAL_CM_LOCAL = 90;
 
 const st = StyleSheet.create({
-  wrap: { flex: 1, width: '100%', backgroundColor: C.sky },
+  /**
+   * userSelect: 연타하는 게임이라 웹에서 글자가 드래그 선택된다.
+   * react-native-web은 Text를 선택 가능한 요소로 그리기 때문에, 숫자를
+   * 빠르게 두드리면 파랗게 잡히고 커서가 텍스트 선택으로 바뀐다.
+   * user-select는 CSS 상속이라 루트에만 걸면 자식 Text까지 따라온다.
+   * (selectable prop은 RNW에서 deprecated — styles.userSelect를 쓰라고 경고한다)
+   */
+  wrap: { flex: 1, width: '100%', backgroundColor: COLORS.bg, userSelect: 'none' },
 
   head: { paddingTop: 40, paddingHorizontal: 20, zIndex: 8 },
   stackText: { position: 'absolute', left: 0, right: 0 },
@@ -387,7 +406,7 @@ const st = StyleSheet.create({
     borderWidth: 3, borderColor: 'transparent',
     alignItems: 'center', justifyContent: 'center',
   },
-  slotOn: { backgroundColor: C.slotOn, borderColor: C.white },
+  slotOn: { backgroundColor: C.slotOn, borderColor: C.sky },
   slotText: { color: C.ink, fontWeight: '800', fontSize: 16 },
   slotX: { color: C.bad, fontWeight: '900', fontSize: 22 },
   slotDash: { color: C.ink, opacity: 0.45, fontSize: 20, fontWeight: '800' },

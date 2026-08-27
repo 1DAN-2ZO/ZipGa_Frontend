@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { GameModule, GameProps } from '../types';
+import { useGameSound } from '../../sound'
+import { COLORS } from '../../theme';
 import { SETS } from './cardArt';
 import {
   Board,
@@ -53,14 +55,20 @@ const COLLECT_MS = 360;   // 다 맞춘 카드가 가운데로 모이는 시간
 const CLEAR_HOLD_MS = 380; // "클리어!" 를 보여주는 시간
 const DEAL_STAGGER = 30;
 
+/**
+ * 뒤집기 전 카드(cardBack)의 짙은 초록만 이 게임의 것으로 남기고,
+ * 나머지 판·글씨는 공통 톤(theme.ts COLORS)을 따른다.
+ * 어두운 배경 전용이던 크림색 글씨는 밝은 호스트 배경에서 묻혔다.
+ */
 const C = {
-  bg: '#15120E', surface: '#262019', surface2: '#312A21', line: '#3B3229',
-  text: '#F6F1E7', text3: '#7D7263',
-  soju: '#3FA063', sojuDim: '#1F4A31', amber: '#F0B44C', miss: '#D9614F',
+  surface: COLORS.surfaceAlt, surface2: COLORS.surface, line: COLORS.border,
+  text: COLORS.text, text3: COLORS.textMuted,
+  soju: COLORS.good, sojuDim: '#D9F0E3', amber: COLORS.accent, miss: COLORS.bad,
   cardBack: '#2C4A38', cardBackEdge: '#3C6349',
 };
 
 function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
+  const sound = useGameSound()
   const limitMs = timeLimitSec * 1000;
   const boards = useMemo<Board[]>(() => makeBoards(seed), [seed]);
 
@@ -193,12 +201,6 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
     });
   }, [onFinish, limitMs]);
 
-  const pauseClock = useCallback(() => {
-    if (!runningRef.current) return;
-    elapsedRef.current += Date.now() - segStartRef.current;
-    runningRef.current = false;
-    if (endTimerRef.current) { clearTimeout(endTimerRef.current); endTimerRef.current = null; }
-  }, []);
 
   const resumeClock = useCallback(() => {
     if (runningRef.current || finishedRef.current) return;
@@ -307,6 +309,7 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
       const values = boards[Math.min(boardIdxRef.current, boards.length - 1)].values;
 
       if (values[ia] === values[ib]) {
+        sound.hit();
         matchedRef.current += 1;
         totalRef.current += 1;
         lastMatchRef.current = now;
@@ -316,7 +319,7 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
         openRef.current = [];
 
         if (matchedRef.current === PAIRS) {
-          pauseClock();
+          // 시계는 멈추지 않는다. 다음 판 미리보기도 제한시간 안에서 흐른다.
           setBanner('클리어!');
           later(() => {
             collectCards();
@@ -335,7 +338,7 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
         lockRef.current = false;
       }, FLIPBACK_MS);
     },
-    [done, boards, playMs, flipTo, pauseClock, collectCards, openBoard, later],
+    [done, boards, playMs, flipTo, collectCards, openBoard, later, sound],
   );
 
   /* ---------- 시작 / 정리 ----------
@@ -361,6 +364,7 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
     setLeft(limitMs);
 
     openBoard(0);
+    resumeClock();                          // 미리보기부터 시계가 흐른다
     tickRef.current = setInterval(() => {
       setLeft(Math.max(0, limitMs - playMs()));
     }, 100);
@@ -424,7 +428,7 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
   );
 
   return (
-    <View style={s.wrap}>
+    <View testID="game-root" style={s.wrap}>
       {/* 머리 — 자를 잡아라와 같은 뼈대(큰 숫자 + 아래 안내 한 줄).
           큰 숫자 한 자리에 카운트다운과 남은 시간을 몰아넣었다.
           3 · 2 · 1 을 세고 나면 그 자리가 그대로 남은 시간으로 이어진다.
@@ -462,7 +466,20 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, width: '100%', paddingHorizontal: 10 },
+  /**
+   * 여백 10은 카드 12장을 넣기 위한 값(jeonjiwon).
+   * backgroundColor: 없으면 배경이 투명해져 호스트 색이 비친다.
+   *   games/__tests__/theme.test.tsx 가 game-root 의 배경을 검사한다.
+   * userSelect: 카드를 연타하면 웹에서 글자가 드래그 선택된다.
+   *   react-native-web 이 Text 를 선택 가능한 요소로 그리기 때문이다.
+   */
+  wrap: {
+    flex: 1,
+    width: '100%',
+    paddingHorizontal: 10,
+    backgroundColor: COLORS.bg,
+    userSelect: 'none',
+  },
   fill: { flex: 1 },
 
   /* 아래 세 덩이(머리 · 정보 칸 · 무대)는 자를 잡아라와 같은 크기·간격이다.
