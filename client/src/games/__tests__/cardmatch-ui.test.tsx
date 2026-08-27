@@ -89,22 +89,20 @@ describe('cardmatch 화면', () => {
     expect(onFinish).toHaveBeenCalledTimes(1);
   });
 
-  it('미리보기 동안에는 시계가 흐르지 않는다', async () => {
+  it('미리보기 시간도 제한시간에 포함된다', async () => {
+    /* 미리보기 동안에도 시계가 흐른다.
+       멈추게 두면 판을 깰 때마다 공짜 시간이 붙어 게임이 언제 끝날지 알 수 없다.
+       포함시키면 판을 몇 개 깨든 화면을 연 지 제한시간 만에 끝난다. */
     const onFinish = jest.fn();
     await render(<Game seed={SEED} timeLimitSec={LIMIT} onFinish={onFinish} />);
 
-    // 미리보기 시간만 보내면 아직 끝나지 않아야 한다
-    await act(async () => {
-      jest.advanceTimersByTime(PREVIEW_MS);
-    });
-    expect(onFinish).not.toHaveBeenCalled();
-
-    // 미리보기 이후로 제한시간을 꽉 채워야 끝난다
+    // 미리보기를 지나 제한시간 직전까지는 아직 안 끝난다
     await act(async () => {
       jest.advanceTimersByTime(LIMIT * 1000 - 1);
     });
     expect(onFinish).not.toHaveBeenCalled();
 
+    // 화면을 연 지 제한시간이 되는 순간 끝난다 (미리보기만큼 더 기다리지 않는다)
     await act(async () => {
       jest.advanceTimersByTime(2);
     });

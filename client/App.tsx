@@ -21,7 +21,7 @@ import {
   setStoredRoomCode,
 } from './src/lib/localProfile'
 import { supabase } from './src/lib/supabase'
-import { checkRoom, createRoom, ensureAnonymousSession, joinRoom, leaveRoom, rejoinRoom, RoomError, setSessionPeriod } from './src/room/api'
+import { checkRoom, createRoom, ensureAnonymousSession, joinRoom, leaveRoom, leaveRoomBeacon, rejoinRoom, RoomError, setSessionPeriod } from './src/room/api'
 import { listAllRoomPlayersEver, listPlayers, subscribeToPlayers } from './src/room/players'
 import { joinRoomPresence } from './src/room/presence'
 import { listSessionScores, waitForAllScores } from './src/room/scores'
@@ -288,6 +288,22 @@ export default function App() {
 
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  }, [roomId])
+
+  // 탭을 닫으면(새로고침·다른 주소로 이동 포함) 그 방에서 나간 것으로 친다 —
+  // 방 코드도 지워서 다음에 열었을 때 "재입장" 안내가 안 뜨고 깨끗한 Home이다.
+  // pagehide는 beforeunload와 달리 모바일 브라우저에서도 안정적으로 온다.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return
+
+    function onPageHide() {
+      if (!roomId) return
+      leaveRoomBeacon()
+      clearStoredRoomCode()
+    }
+
+    window.addEventListener('pagehide', onPageHide)
+    return () => window.removeEventListener('pagehide', onPageHide)
   }, [roomId])
 
   // 로비에 들어올 때마다(입장 직후·재입장·세션 종료 후 복귀) 다음 세션 알림 기준
