@@ -35,8 +35,13 @@ export const MAX_BOARDS = 8;
  */
 export const TARGET_PAIRS = 10;
 
-/** 판 시작 시 카드를 전부 보여주는 시간. 이 동안 제한시간은 멈춘다. */
-export const PREVIEW_MS = 2000;
+/**
+ * 판 시작 시 카드를 전부 보여주는 시간. 이 동안 제한시간은 멈춘다.
+ *
+ * 다른 게임의 카운트다운과 같은 3초로 맞춘다.
+ * 화면에도 3·2·1 이 뜨므로 언제 덮이는지 미리 알 수 있다.
+ */
+export const PREVIEW_MS = 3000;
 
 /** 짝이 아닐 때 다시 덮이기까지의 시간. */
 export const FLIPBACK_MS = 700;
