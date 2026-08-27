@@ -572,6 +572,20 @@ export default function App() {
   }
 
   /**
+   * GoingHome의 "첫 화면으로". 이 시점엔 이미 방에서 나간 상태라 서버에 더
+   * 할 일은 없다 — "아직 안 갈래"(rejoin_room)와 반대로, 이 방 코드를 완전히
+   * 접고 Home으로 돌아간다(handleRejoin 실패 경로와 같은 정리).
+   */
+  async function handleGoHomeFromGoingHome() {
+    await clearStoredRoomCode()
+    setStoredRoomCodeState(null)
+    setActiveRoomCode(null)
+    setRoomId(null)
+    setMyPlayerId(null)
+    setScreen('Home')
+  }
+
+  /**
    * "집에 갈래" — 벌칙과 완전히 같은 경로를 탄다: 서버 제거 커밋(leave_room) →
    * 응답 확인 → 카카오T 딥링크 (sessionEnd.md §4.3, §4.2 순서 경고).
    * 딥링크를 먼저 쏘면 앱이 백그라운드로 내려가면서 leave_room 요청이 유실될 수 있다.
@@ -763,6 +777,7 @@ export default function App() {
           // 이 시점엔 이미 방에서 나간 상태(roomId=null)라 그냥 화면 전환이 아니라
           // 진짜 재입장(rejoin_room)이 필요하다 — handleRejoin이 storedRoomCode로 처리한다.
           onStay={handleRejoin}
+          onGoHome={handleGoHomeFromGoingHome}
         />
       )}
       {screen === 'Game' && <GameSandbox onSettings={openSettings} />}
