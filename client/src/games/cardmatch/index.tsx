@@ -104,6 +104,14 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
   );
 
   // --- 애니메이션 값 (카드 12장 고정) ---
+  /**
+   * 카드 뒤집기에 쓰는 회전·투명도 계산.
+   *
+   * 렌더할 때마다 새로 만들면 안 된다.
+   * 남은 시간이 0.1초마다 바뀌면서 화면이 초당 10번 다시 그려지는데,
+   * 그때마다 12장 × 4개 = 48개가 새로 붙어 초당 480개가 만들어진다.
+   * 그만큼 화면이 끊기고 터치가 밀린다. 한 번 만들어 두고 계속 쓴다.
+   */
   const A = useRef(
     Array.from({ length: CARD_COUNT }, () => ({
       flip: new Animated.Value(1), // 1 = 앞면, 0 = 뒷면
@@ -113,6 +121,18 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
       op: new Animated.Value(1),
     })),
   ).current;
+
+  /** 카드 12장의 앞뒷면 회전·투명도. 컴포넌트가 사는 동안 한 벌만 쓴다. */
+  const interp = useMemo(
+    () =>
+      A.map((a) => ({
+        frontRot: a.flip.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] }),
+        backRot: a.flip.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }),
+        frontOp: a.flip.interpolate({ inputRange: [0, 0.5, 0.5001, 1], outputRange: [0, 0, 1, 1] }),
+        backOp: a.flip.interpolate({ inputRange: [0, 0.5, 0.5001, 1], outputRange: [1, 1, 0, 0] }),
+      })),
+    [A],
+  );
 
   /* 카드 크기.
 
@@ -360,44 +380,12 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const board = boards[Math.min(boardIdx, boards.length - 1)];
   const icons = SETS[board.setIndex].icons;
 
-  return (
-    <View style={s.wrap}>
-      {/* 머리 — 자를 잡아라와 같은 뼈대(큰 숫자 + 아래 안내 한 줄).
-          큰 숫자 한 자리에 카운트다운과 남은 시간을 몰아넣었다.
-          3 · 2 · 1 을 세고 나면 그 자리가 그대로 남은 시간으로 이어진다.
-          카드 12장이 들어갈 자리를 남겨야 해서 자잡기보다 작게 잡았다. */}
-      <View style={s.head}>
-        <View style={s.headRow}>
-          <Text
-            testID="clock"
-            style={[s.big, countText ? s.bigCount : null, { color: !countText && left <= 10000 ? urgent : C.text }]}
-          >
-            {countText || String(secs)}
-          </Text>
-          <View style={s.pairs}>
-            <Text style={s.pairsKey}>맞춘 짝</Text>
-            <Text testID="total" style={s.pairsVal}>{total}</Text>
-          </View>
-        </View>
-        <Text testID="banner" style={s.sub}>{banner}</Text>
-      </View>
-
-      <View
-        style={s.stage}
-        onLayout={(e) => {
-          const l = e.nativeEvent.layout;
-          setGridW(l.width);
-          setGridH(l.height);
-        }}
-      >
-      <View style={[s.grid, { width: COLS * cardW + (COLS - 1) * GAP }]}>
-        {board.values.map((val, i) => {
-          const a = A[i];
-          const Icon = icons[val];
-          const frontRot = a.flip.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] });
-          const backRot = a.flip.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
-          const frontOp = a.flip.interpolate({ inputRange: [0, 0.5, 0.5001, 1], outputRange: [0, 0, 1, 1] });
-          const backOp = a.flip.interpolate({ inputRange: [0, 0.5, 0.5001, 1], outputRange: [1, 1, 0, 0] });
+  const cards = useMemo(
+    () =>
+      board.values.map((val, i) => {
+        const a = A[i];
+        const Icon = icons[val];
+        const { frontRot, backRot, frontOp, backOp } = interp[i];
 
           return (
             <Animated.View
@@ -431,7 +419,42 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
               </Pressable>
             </Animated.View>
           );
-        })}
+      }),
+    [board, icons, done, cardW, cardH, tap, interp],
+  );
+
+  return (
+    <View style={s.wrap}>
+      {/* 머리 — 자를 잡아라와 같은 뼈대(큰 숫자 + 아래 안내 한 줄).
+          큰 숫자 한 자리에 카운트다운과 남은 시간을 몰아넣었다.
+          3 · 2 · 1 을 세고 나면 그 자리가 그대로 남은 시간으로 이어진다.
+          카드 12장이 들어갈 자리를 남겨야 해서 자잡기보다 작게 잡았다. */}
+      <View style={s.head}>
+        <View style={s.headRow}>
+          <Text
+            testID="clock"
+            style={[s.big, countText ? s.bigCount : null, { color: !countText && left <= 10000 ? urgent : C.text }]}
+          >
+            {countText || String(secs)}
+          </Text>
+          <View style={s.pairs}>
+            <Text style={s.pairsKey}>맞춘 짝</Text>
+            <Text testID="total" style={s.pairsVal}>{total}</Text>
+          </View>
+        </View>
+        <Text testID="banner" style={s.sub}>{banner}</Text>
+      </View>
+
+      <View
+        style={s.stage}
+        onLayout={(e) => {
+          const l = e.nativeEvent.layout;
+          setGridW(l.width);
+          setGridH(l.height);
+        }}
+      >
+      <View style={[s.grid, { width: COLS * cardW + (COLS - 1) * GAP }]}>
+        {cards}
       </View>
       </View>
     </View>
