@@ -49,12 +49,17 @@ export const COLORS = {
    * 게임 폴더에 하드코딩하지 않는 규칙을 따라 여기에 올린다.
    * 껍데기는 밝은 회색 배경 위에서 흰 판(surface)과 구별돼야 해서
    * 크림 쪽으로 살짝 틀었다.
+   *
+   * 여기 있는 것은 "무슨 색인가"까지다. 같은 색을 밝게·어둡게 민 음영은
+   * 새 색이 아니라 그림자라서 Egg.tsx가 직접 들고 있다.
    */
   shell: '#FAF3E6',
   shellLine: '#C9B892',
+  shellCrack: '#A8916A',
   chick: '#FFD84D',
-  chickPale: '#FFE894',
+  chickWing: '#F5C518',
   beak: '#F2994A',
+  blush: '#FFB3A7',
 
   /** 잘한 것 */
   good: '#159F5B',
