@@ -90,8 +90,14 @@ async function countPendingSubmitters(sessionId: string, participantIds: readonl
   return participantIds.filter((id) => (submittedCount.get(id) ?? 0) < ROUNDS_PER_SESSION).length
 }
 
-/** 종합 판정(end_session) 전에 뒤처진 참가자를 최대 이만큼 기다려준다. */
-export const END_SESSION_WAIT_MS = 60_000
+/**
+ * 종합 판정(end_session) 전에 뒤처진 참가자를 최대 이만큼 기다려준다.
+ *
+ * 이 대기는 세션 시작이 아니라 "이 기기가 자기 3판을 끝낸 시점"부터 잰다
+ * (waitForAllScores 호출부인 useSession.ts 참고) — 그러니까 실질적으로
+ * 가장 먼저 끝낸 사람 기준 최대 대기다.
+ */
+export const END_SESSION_WAIT_MS = 30_000
 
 /**
  * 이 세션에 참여한 사람 전원이 3판을 다 낼 때까지(또는 timeoutMs가 지날 때까지)
