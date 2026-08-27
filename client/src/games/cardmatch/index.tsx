@@ -449,7 +449,21 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, width: '100%', paddingHorizontal: 10, backgroundColor: COLORS.bg },
+  /**
+   * 여백 10은 카드 12장을 넣기 위한 값(jeonjiwon).
+   * backgroundColor: 없으면 배경이 투명해져 호스트 색이 비친다.
+   *   games/__tests__/theme.test.tsx 가 game-root 의 배경을 검사한다.
+   * userSelect: 카드를 연타하면 웹에서 글자가 드래그 선택된다.
+   *   react-native-web 이 Text 를 선택 가능한 요소로 그리기 때문이다.
+   *   CSS 상속이라 루트에만 걸면 자식 Text 까지 따라온다.
+   */
+  wrap: {
+    flex: 1,
+    width: '100%',
+    paddingHorizontal: 10,
+    backgroundColor: COLORS.bg,
+    userSelect: 'none',
+  },
   fill: { flex: 1 },
 
   /* 아래 세 덩이(머리 · 정보 칸 · 무대)는 자를 잡아라와 같은 크기·간격이다.

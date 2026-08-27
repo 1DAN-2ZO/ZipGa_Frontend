@@ -140,18 +140,28 @@ describe('gugudan 실제 플레이', () => {
 describe('rulercatch 실제 플레이', () => {
   const SEED = 4242
 
-  /** 무대 높이를 받기 전에는 라운드가 시작되지 않는다. */
+  // 무대 높이를 받기 전에는 라운드가 시작되지 않는다.
+  const STAGE = { x: 0, y: 200, width: 340, height: 420 }
+
   const layoutStage = async () => {
     await act(async () => {
-      fireEvent(screen.getByTestId('stage'), 'layout', {
-        nativeEvent: { layout: { width: 340, height: 420 } },
-      })
+      fireEvent(screen.getByTestId('stage'), 'layout', { nativeEvent: { layout: STAGE } })
     })
   }
 
-  const tapRoot = async () => {
+  /**
+   * 이제는 아무 데나 눌러서는 안 잡힌다 — 떨어지는 자를 덮어야 한다.
+   * 자는 무대 가운데(폭 RULER_W)에 있고, 판정은 무대 기준 좌표로 한다.
+   * 화면 전체가 Pressable이라 locationY에서 무대 top(STAGE.y)을 빼서 본다.
+   */
+  const tapRuler = async () => {
     await act(async () => {
-      fireEvent(screen.getByTestId('game-root'), 'pressIn')
+      fireEvent(screen.getByTestId('game-root'), 'pressIn', {
+        nativeEvent: {
+          locationX: STAGE.width / 2,   // 자의 가운데
+          locationY: STAGE.y + 1,       // 막 나오기 시작한 자의 끝
+        },
+      })
     })
   }
 
@@ -169,8 +179,9 @@ describe('rulercatch 실제 플레이', () => {
     const waits = makeWaits(SEED)
     for (let i = 0; i < RULER_ROUNDS; i++) {
       // count(3초) → armed(waits[i]) → emerging. emerging에서 잡아야 한다.
-      await advance(RULER_COUNTDOWN + waits[i] + 20)
-      await tapRoot()
+      // 자가 조금이라도 나온 뒤여야 판정이 선다(나온 길이가 0이면 안 잡힌다).
+      await advance(RULER_COUNTDOWN + waits[i] + 120)
+      await tapRuler()
     }
 
     await advance(rulercatch.info.timeLimitSec * 1000)
