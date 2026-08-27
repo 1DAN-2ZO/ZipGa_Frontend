@@ -146,6 +146,45 @@ describe('useSession', () => {
     })
   })
 
+  it('마지막 판 제출이 서버에 닿기 전에는 end_session을 부르지 않는다', async () => {
+    // roundResult 화면은 로컬 타이머로 스스로 넘어가므로, 그 판의 submit_score
+    // 요청이 아직 서버에 안 닿았어도 3판째 이후 phase는 곧장 final로 간다.
+    // 이때 end_session이 먼저 나가버리면 서버는 그 판을 "제출 없음=0점"으로
+    // 채점한다 — 분명 통과권이었는데 평균이 깎이는 원인이다.
+    const { deps, calls } = makeDeps()
+    let resolveLastSubmit: (() => void) | null = null
+    const originalRpc = deps.client.rpc
+    deps.client.rpc = (fn, args) => {
+      if (fn === 'submit_score' && (args as { p_round_index?: number })?.p_round_index === 2) {
+        return new Promise((resolve) => {
+          resolveLastSubmit = () => resolve(originalRpc(fn, args))
+        })
+      }
+      return originalRpc(fn, args)
+    }
+
+    const { result: hook } = await renderHook(() => useSession(deps))
+    await act(async () => hook.current.start())
+    await act(async () => hook.current.advance({ type: 'LINEUP_SHOWN' }))
+    for (const score of [80, 70]) {
+      await act(async () => hook.current.advance({ type: 'COUNTDOWN_DONE' }))
+      await act(async () => hook.current.advance({ type: 'ROUND_FINISHED', result: result(score) }))
+      await act(async () => hook.current.advance({ type: 'ROUND_RESULT_DONE' }))
+    }
+    await act(async () => hook.current.advance({ type: 'COUNTDOWN_DONE' }))
+    await act(async () => hook.current.advance({ type: 'ROUND_FINISHED', result: result(60) }))
+    await act(async () => hook.current.advance({ type: 'ROUND_RESULT_DONE' }))
+
+    // 3판째 제출이 아직 안 끝났다 — end_session이 불려선 안 된다.
+    expect(calls.some((c) => c.fn === 'end_session')).toBe(false)
+
+    await act(async () => resolveLastSubmit?.())
+
+    await waitFor(() => {
+      expect(calls.some((c) => c.fn === 'end_session')).toBe(true)
+    })
+  })
+
   it('end_session은 한 번만 부른다', async () => {
     const { deps, calls } = makeDeps()
     const { result: hook } = await renderHook(() => useSession(deps))

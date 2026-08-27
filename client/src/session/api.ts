@@ -83,18 +83,46 @@ export async function startSession(
   return { sessionId: row.session_id, seed: row.seed, startsAt: row.starts_at }
 }
 
+/**
+ * 재시도 사이 대기 시간(ms). 마지막 것까지 다 실패하면 포기한다.
+ *
+ * 판 제출이 한 번이라도 실패한 채 그냥 넘어가면, waitForAllScores(room/scores.ts)는
+ * 그 사람을 영원히 "아직 제출 안 함"으로 본다 — 다시 낼 방법이 없으니 realtime으로도
+ * 못 잡고, END_SESSION_WAIT_MS를 매번 끝까지 태운다(30초든 60초든 숫자를 바꿔도
+ * 안 고쳐지는 이유였다). submit_score는 (session_id, player_id, round_index) unique
+ * conflict do nothing이라 몇 번을 다시 불러도 안전하다.
+ */
+const SUBMIT_RETRY_DELAYS_MS = [500, 1500, 3000]
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export async function submitScore(
   client: RpcClient,
   { sessionId, roundIndex, result }: SubmitScoreArgs,
 ): Promise<void> {
-  await call(client, 'submit_score', {
+  const args = {
     p_session_id: sessionId,
     p_round_index: roundIndex,
     p_normalized: result.normalizedScore,
     p_raw_score: result.score,
     p_tiebreak_ms: result.tiebreakMs,
     p_finished: result.finished,
-  })
+  }
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await call(client, 'submit_score', args)
+      return
+    } catch (e) {
+      // SESSION_NOT_ACTIVE·NOT_IN_ROOM 같은 건 다시 불러도 똑같이 실패한다 —
+      // 재시도로 나아지는 건 원인을 모르는(UNKNOWN) 실패뿐이다(네트워크 끊김 등).
+      const permanent = e instanceof SessionError && e.code !== 'UNKNOWN'
+      if (permanent || attempt >= SUBMIT_RETRY_DELAYS_MS.length) throw e
+      await sleep(SUBMIT_RETRY_DELAYS_MS[attempt])
+    }
+  }
 }
 
 export async function endSession(

@@ -13,9 +13,13 @@ function okClient(data: unknown) {
 }
 
 function errClient(message: string) {
+  const calls: Array<{ fn: string; args?: Record<string, unknown> }> = []
   return {
-    calls: [] as unknown[],
-    rpc: async () => ({ data: null, error: { message } }),
+    calls,
+    rpc: async (fn: string, args?: Record<string, unknown>) => {
+      calls.push({ fn, args })
+      return { data: null, error: { message } }
+    },
   }
 }
 
@@ -96,6 +100,51 @@ describe('submitScore', () => {
     await expect(
       submitScore(client, { sessionId: 's1', roundIndex: 0, result: RESULT }),
     ).rejects.toMatchObject({ code: 'SESSION_NOT_ACTIVE' })
+  })
+
+  it('SESSION_NOT_ACTIVE 같은 확정된 실패는 재시도 없이 바로 던진다', async () => {
+    const client = errClient('SESSION_NOT_ACTIVE')
+    await submitScore(client, { sessionId: 's1', roundIndex: 0, result: RESULT }).catch(() => {})
+    expect(client.calls).toHaveLength(1)
+  })
+
+  it('원인 모를 실패(네트워크 등)는 재시도해서 성공하면 그대로 넘어간다', async () => {
+    jest.useFakeTimers()
+    try {
+      let attempts = 0
+      const calls: Array<{ fn: string; args?: Record<string, unknown> }> = []
+      const client = {
+        calls,
+        rpc: async (fn: string, args?: Record<string, unknown>) => {
+          calls.push({ fn, args })
+          attempts += 1
+          if (attempts < 3) return { data: null, error: { message: 'connection reset by peer' } }
+          return { data: null, error: null }
+        },
+      }
+
+      const promise = submitScore(client, { sessionId: 's1', roundIndex: 0, result: RESULT })
+      await jest.runAllTimersAsync()
+      await expect(promise).resolves.toBeUndefined()
+      expect(attempts).toBe(3)
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('재시도를 다 써도 실패하면 결국 UNKNOWN을 던진다', async () => {
+    jest.useFakeTimers()
+    try {
+      const client = errClient('connection reset by peer')
+      const promise = submitScore(client, { sessionId: 's1', roundIndex: 0, result: RESULT })
+      const assertion = expect(promise).rejects.toMatchObject({ code: 'UNKNOWN' })
+      await jest.runAllTimersAsync()
+      await assertion
+      // 최초 시도 + 재시도 3번 = 4번
+      expect(client.calls).toHaveLength(4)
+    } finally {
+      jest.useRealTimers()
+    }
   })
 })
 

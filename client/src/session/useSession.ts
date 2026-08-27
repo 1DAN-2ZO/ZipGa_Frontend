@@ -66,13 +66,15 @@ export function useSession(deps: UseSessionDeps): SessionHandle {
   const [error, setError] = useState<SessionErrorCode | null>(null)
 
   const sessionIdRef = useRef<string | null>(null)
-  const submittedRef = useRef<Set<number>>(new Set())
+  /** 판별 제출 요청의 진행 상태. 3판이 끝나자마자 end_session으로 넘어가기 전에
+   * 내 마지막 판 제출이 실제로 서버에 도착했는지 이 Promise로 확인한다. */
+  const submittedRef = useRef<Map<number, Promise<void>>>(new Map())
   const endedRef = useRef(false)
 
   const begin = useCallback(
     (row: SessionRow) => {
       sessionIdRef.current = row.session_id
-      submittedRef.current = new Set()
+      submittedRef.current = new Map()
       endedRef.current = false
       setSessionId(row.session_id)
       setVerdict(null)
@@ -120,20 +122,29 @@ export function useSession(deps: UseSessionDeps): SessionHandle {
 
     const roundIndex = state.roundIndex
     if (submittedRef.current.has(roundIndex)) return
-    submittedRef.current.add(roundIndex)
 
     const result = state.results[roundIndex]
-    submitScore(deps.client, { sessionId, roundIndex, result }).catch((e) => {
+    const submitted = submitScore(deps.client, { sessionId, roundIndex, result }).catch((e) => {
       setError(e instanceof SessionError ? e.code : 'UNKNOWN')
     })
+    submittedRef.current.set(roundIndex, submitted)
   }, [state, deps.client])
 
   // 3판이 끝나면 판정을 요청한다. 한 번만 부른다.
   //
   // 요청 자체는 즉시 안 부르고, 이 세션 참가자 전원이 3판을 다 낼 때까지
-  // 최대 60초 기다린 뒤 부른다 — 누가 조금 늦게 진행되고 있어도 3판째 제출이
+  // 최대 30초(END_SESSION_WAIT_MS) 기다린 뒤 부른다 — 누가 조금 늦게 진행되고 있어도 3판째 제출이
   // end_session에 막 걸려 SESSION_NOT_ACTIVE로 거부당하는 일을 줄인다.
   // (벌칙 판정 자체는 안 바뀐다 — 여전히 "3판 평균 < 40" 하나뿐이다.)
+  //
+  // 그 전에 먼저 내 판 제출들이 실제로 서버에 도착했는지부터 기다린다.
+  // submitScore는 위 effect에서 await 없이 쏘기만 하므로, 마지막 판이 끝나자마자
+  // (roundResult 화면이 3초 뒤 스스로 넘어가는 로컬 타이머일 뿐이라) 그 요청이 아직
+  // 서버에 안 닿았을 수 있다. 이 상태로 곧장 end_session이 불리면, 서버는 그 판을
+  // "제출 없음 = 0점"으로 채점한다 — 분명 통과권이었는데 평균이 깎여 벌칙 대상이
+  // 되고, 최악의 경우 방에 남은 마지막 한 명까지 그렇게 되면 방 자체가 삭제된다
+  // (_remove_player, 백엔드 §5.1). waitForAllScores의 Realtime 감시로도 대개는
+  // 잡히지만 구독이 자리 잡기 전의 틈은 못 막으므로, 내 제출은 여기서 직접 보장한다.
   useEffect(() => {
     const sessionId = sessionIdRef.current
     if (!state || !sessionId || state.phase !== 'final' || endedRef.current) return
@@ -141,6 +152,8 @@ export function useSession(deps: UseSessionDeps): SessionHandle {
 
     let cancelled = false
     ;(async () => {
+      await Promise.all(submittedRef.current.values())
+      if (cancelled) return
       await deps.waitForAllScores(sessionId, deps.getSessionParticipantIds())
       if (cancelled) return
       try {
