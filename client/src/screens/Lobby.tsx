@@ -1,4 +1,4 @@
-import { FlatList, StyleSheet, Text, View } from 'react-native'
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
 import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { colors, fonts, radius } from '../theme/colors'
@@ -22,6 +22,10 @@ export interface LobbyProps {
   /** 지금 이 방에 접속 중인 플레이어 id들 (Supabase Presence). 화면 표시(초록 점)에만 쓴다 —
    * 방 소속 여부(강퇴·나감) 판단에는 절대 안 쓴다, 그건 players 목록 자체가 이미 반영한다. */
   onlinePlayerIds: Set<string>
+  /** 방장을 제외한 인원 중 "게임 시작" 준비를 마친 사람들 (Supabase Presence). */
+  readyPlayerIds: Set<string>
+  /** 내 준비 상태를 "준비완료"로 바꾼다. 대기중→준비완료 한 방향뿐이라 인자가 없다. */
+  onReady: () => void
   /** 앱 전역 상수. games/types.ts의 PENALTY_THRESHOLD와 항상 같아야 한다. */
   threshold: number
   /** 이 기기 사용자가 방장인지 */
@@ -31,8 +35,9 @@ export interface LobbyProps {
    * 순수 알림용이다 — "슬슬 게임 한 번 해라" 정도. 시작 버튼을 막지 않는다.
    */
   nextSessionLabel: string | null
-  /** 시작 버튼을 누를 수 있는 유일한 조건 (최소 인원 2명). 주기 도달 여부와 무관하다
-   * (mdfile/프론트엔드_화면명세.md S3 — "주기 도달 전에도 누를 수 있음"). */
+  /** 시작 버튼을 누를 수 있는 조건 (최소 인원 2명 + 방장 제외 전원 준비완료).
+   * 주기 도달 여부와는 무관하다(mdfile/프론트엔드_화면명세.md S3 — "주기 도달 전에도
+   * 누를 수 있음") — App.tsx가 계산해서 넘긴다. */
   canStart: boolean
   onStartSession: () => void
   onLeaveRoom: () => void
@@ -45,6 +50,8 @@ export function Lobby({
   players,
   myPlayerId,
   onlinePlayerIds,
+  readyPlayerIds,
+  onReady,
   threshold,
   isHost,
   nextSessionLabel,
@@ -88,6 +95,8 @@ export function Lobby({
                 penalized={item.avgScore < threshold}
                 online={onlinePlayerIds.has(item.id)}
                 isMe={item.id === myPlayerId}
+                ready={readyPlayerIds.has(item.id)}
+                onReady={onReady}
               />
             </View>
           )
@@ -124,6 +133,8 @@ function PlayerRow({
   penalized,
   online,
   isMe,
+  ready,
+  onReady,
 }: {
   player: LobbyPlayer
   penalized: boolean
@@ -131,6 +142,9 @@ function PlayerRow({
   online: boolean
   /** 이 행이 나 자신인지. 보라 배경으로 눈에 띄게 한다 — 탈락 배경과 같은 색이라 글자색도 같이 맞춘다. */
   isMe: boolean
+  /** 방장을 제외한 인원의 준비 여부. 방장 행은 애초에 안 쓴다. */
+  ready: boolean
+  onReady: () => void
 }) {
   const delta = rankDelta(player.rank, player.previousRank)
   const onColor = penalized || isMe
@@ -147,7 +161,39 @@ function PlayerRow({
         </Text>
         <Text style={[styles.deltaIcon, onColor && styles.deltaIconOnColor]}>{deltaIcon(delta)}</Text>
       </View>
+      {!player.isHost && <ReadyBadge ready={ready} canPress={isMe} onPress={onReady} />}
       <Text style={[styles.score, onColor && styles.scoreOnColor]}>{player.avgScore.toFixed(0)}점</Text>
+    </View>
+  )
+}
+
+/**
+ * "대기중"/"준비완료" 표시. 본인 행에서만, 그것도 아직 대기중일 때만 누를 수 있다 —
+ * 누르고 나면(대기중→준비완료) 다시 되돌릴 방법은 없다(App.tsx의 handleReady 참고).
+ */
+function ReadyBadge({ ready, canPress, onPress }: { ready: boolean; canPress: boolean; onPress: () => void }) {
+  if (ready) {
+    return (
+      <View style={[styles.readyBadge, styles.readyBadgeDone]}>
+        <Text style={styles.readyBadgeTextDone}>준비완료</Text>
+      </View>
+    )
+  }
+  if (canPress) {
+    return (
+      <Pressable
+        testID="ready-button"
+        style={[styles.readyBadge, styles.readyBadgeWaitingSelf]}
+        onPress={onPress}
+        hitSlop={6}
+      >
+        <Text style={styles.readyBadgeTextWaitingSelf}>대기중</Text>
+      </Pressable>
+    )
+  }
+  return (
+    <View style={[styles.readyBadge, styles.readyBadgeWaiting]}>
+      <Text style={styles.readyBadgeText}>대기중</Text>
     </View>
   )
 }
@@ -248,6 +294,35 @@ const styles = StyleSheet.create({
   },
   deltaIconOnColor: {
     color: 'rgba(255,255,255,0.85)',
+  },
+  readyBadge: {
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  readyBadgeWaiting: {
+    backgroundColor: colors.inputBg,
+  },
+  readyBadgeText: {
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  readyBadgeWaitingSelf: {
+    backgroundColor: colors.secondary,
+  },
+  readyBadgeTextWaitingSelf: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    color: colors.textPrimary,
+  },
+  readyBadgeDone: {
+    backgroundColor: colors.good,
+  },
+  readyBadgeTextDone: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    color: colors.white,
   },
   score: {
     fontFamily: fonts.bold,
