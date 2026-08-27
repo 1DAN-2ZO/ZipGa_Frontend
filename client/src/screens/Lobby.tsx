@@ -1,4 +1,4 @@
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
+import { FlatList, StyleSheet, Text, View } from 'react-native'
 import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { colors, fonts, radius } from '../theme/colors'
@@ -96,7 +96,6 @@ export function Lobby({
                 online={onlinePlayerIds.has(item.id)}
                 isMe={item.id === myPlayerId}
                 ready={readyPlayerIds.has(item.id)}
-                onReady={onReady}
               />
             </View>
           )
@@ -110,6 +109,15 @@ export function Lobby({
             variant="secondary"
             disabled={!canStart}
             onPress={onStartSession}
+          />
+        )}
+        {!isHost && (
+          <PillButton
+            testID="ready-button"
+            label={readyPlayerIds.has(myPlayerId) ? '준비완료' : '대기중'}
+            variant="secondary"
+            disabled={readyPlayerIds.has(myPlayerId)}
+            onPress={onReady}
           />
         )}
         <PillButton label="집에 갈래" onPress={onLeaveRoom} />
@@ -134,7 +142,6 @@ function PlayerRow({
   online,
   isMe,
   ready,
-  onReady,
 }: {
   player: LobbyPlayer
   penalized: boolean
@@ -144,7 +151,6 @@ function PlayerRow({
   isMe: boolean
   /** 방장을 제외한 인원의 준비 여부. 방장 행은 애초에 안 쓴다. */
   ready: boolean
-  onReady: () => void
 }) {
   const delta = rankDelta(player.rank, player.previousRank)
   const onColor = penalized || isMe
@@ -161,39 +167,16 @@ function PlayerRow({
         </Text>
         <Text style={[styles.deltaIcon, onColor && styles.deltaIconOnColor]}>{deltaIcon(delta)}</Text>
       </View>
-      {!player.isHost && <ReadyBadge ready={ready} canPress={isMe} onPress={onReady} />}
+      {/* 여기는 표시 전용이다 — 본인 준비 상태를 실제로 바꾸는 버튼은 화면 하단,
+          "게임 시작"과 같은 자리에 있다(App.tsx의 handleReady, 아래 buttons). */}
+      {!player.isHost && (
+        <View style={[styles.readyBadge, ready ? styles.readyBadgeDone : styles.readyBadgeWaiting]}>
+          <Text style={ready ? styles.readyBadgeTextDone : styles.readyBadgeText}>
+            {ready ? '준비완료' : '대기중'}
+          </Text>
+        </View>
+      )}
       <Text style={[styles.score, onColor && styles.scoreOnColor]}>{player.avgScore.toFixed(0)}점</Text>
-    </View>
-  )
-}
-
-/**
- * "대기중"/"준비완료" 표시. 본인 행에서만, 그것도 아직 대기중일 때만 누를 수 있다 —
- * 누르고 나면(대기중→준비완료) 다시 되돌릴 방법은 없다(App.tsx의 handleReady 참고).
- */
-function ReadyBadge({ ready, canPress, onPress }: { ready: boolean; canPress: boolean; onPress: () => void }) {
-  if (ready) {
-    return (
-      <View style={[styles.readyBadge, styles.readyBadgeDone]}>
-        <Text style={styles.readyBadgeTextDone}>준비완료</Text>
-      </View>
-    )
-  }
-  if (canPress) {
-    return (
-      <Pressable
-        testID="ready-button"
-        style={[styles.readyBadge, styles.readyBadgeWaitingSelf]}
-        onPress={onPress}
-        hitSlop={6}
-      >
-        <Text style={styles.readyBadgeTextWaitingSelf}>대기중</Text>
-      </Pressable>
-    )
-  }
-  return (
-    <View style={[styles.readyBadge, styles.readyBadgeWaiting]}>
-      <Text style={styles.readyBadgeText}>대기중</Text>
     </View>
   )
 }
@@ -307,14 +290,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     fontSize: 11,
     color: colors.textMuted,
-  },
-  readyBadgeWaitingSelf: {
-    backgroundColor: colors.secondary,
-  },
-  readyBadgeTextWaitingSelf: {
-    fontFamily: fonts.bold,
-    fontSize: 11,
-    color: colors.textPrimary,
   },
   readyBadgeDone: {
     backgroundColor: colors.good,

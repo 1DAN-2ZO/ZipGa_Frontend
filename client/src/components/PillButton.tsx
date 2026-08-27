@@ -8,12 +8,14 @@ export interface PillButtonProps {
   variant?: 'primary' | 'secondary'
   icon?: keyof typeof MaterialIcons.glyphMap
   disabled?: boolean
+  testID?: string
 }
 
-export function PillButton({ label, onPress, variant = 'primary', icon, disabled }: PillButtonProps) {
+export function PillButton({ label, onPress, variant = 'primary', icon, disabled, testID }: PillButtonProps) {
   const isPrimary = variant === 'primary'
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       disabled={disabled}
       style={[
