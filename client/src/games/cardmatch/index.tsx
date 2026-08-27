@@ -449,7 +449,7 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, width: '100%', paddingHorizontal: 10 },
+  wrap: { flex: 1, width: '100%', paddingHorizontal: 10, backgroundColor: COLORS.bg },
   fill: { flex: 1 },
 
   /* 아래 세 덩이(머리 · 정보 칸 · 무대)는 자를 잡아라와 같은 크기·간격이다.
