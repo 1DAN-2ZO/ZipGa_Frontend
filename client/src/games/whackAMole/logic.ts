@@ -29,8 +29,23 @@ export const MAX_PER_WAVE = 2
  */
 export const WAVE_INTERVAL_MS = 1000
 
-/** 치면 안 되는 폭탄 수. 총 등장 수와 무관하게 한 판에 이만큼 섞인다. */
-export const BOMB_COUNT = 5
+/**
+ * 치면 안 되는 폭탄의 비중.
+ *
+ * 개수로 고정하면 판이 커질수록 폭탄이 묽어져 난이도가 떨어진다.
+ * 등장물 20개에 5개이던 시절과 같은 비율이라, 총량이 늘어도 밀도가 같다.
+ */
+export const BOMB_RATIO = 0.25
+
+/**
+ * 등장물 total개짜리 판에 섞을 폭탄 수.
+ *
+ * 내림으로 자른다. 반올림하면 두더지가 한 마리도 없는 판이 나올 수 있고,
+ * 그러면 무엇을 해도 0점이라 게임이 성립하지 않는다.
+ */
+export function bombCountFor(total: number): number {
+  return Math.min(Math.floor(total * BOMB_RATIO), Math.max(0, total - 1))
+}
 
 /**
  * 표시 시간 범위(ms).
@@ -82,7 +97,7 @@ export function buildSpawns(seed: number, durationMs: number): Spawn[] {
 
   // 어느 순번이 폭탄인지 정한다. 시드가 같으면 폭탄 위치도 같다.
   const order = rng.shuffle(Array.from({ length: total }, (_, i) => i))
-  const bombTurns = new Set(order.slice(0, Math.min(BOMB_COUNT, total)))
+  const bombTurns = new Set(order.slice(0, bombCountFor(total)))
 
   /** 구멍별로 마지막 등장물이 사라지는 시각. 같은 구멍이 겹치는 것을 막는다. */
   const freeAt = new Array<number>(HOLE_COUNT).fill(0)

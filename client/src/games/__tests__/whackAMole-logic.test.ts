@@ -1,6 +1,7 @@
 import { PENALTY_THRESHOLD } from '../types'
 import {
-  BOMB_COUNT,
+  BOMB_RATIO,
+  bombCountFor,
   buildSpawns,
   countMoles,
   HOLE_COUNT,
@@ -33,8 +34,10 @@ describe('상수', () => {
     expect(VISIBLE_MAX_MS).toBe(1000)
   })
 
-  it('폭탄은 5개다', () => {
-    expect(BOMB_COUNT).toBe(5)
+  it('폭탄 비중은 등장물의 25%다', () => {
+    // 총량이 20개이던 시절의 5개와 같은 비율. 총량이 늘어도 밀도가 유지된다.
+    expect(BOMB_RATIO).toBe(0.25)
+    expect(bombCountFor(20)).toBe(5)
   })
 })
 
@@ -79,10 +82,24 @@ describe('buildSpawns', () => {
     }
   })
 
-  it('폭탄은 정확히 정해진 수만큼이다', () => {
+  it('폭탄이 총 등장물의 25%를 차지한다', () => {
     for (const seed of SEEDS) {
-      expect(buildSpawns(seed, DURATION).filter((s) => s.kind === 'bomb')).toHaveLength(BOMB_COUNT)
+      const spawns = buildSpawns(seed, DURATION)
+      const bombs = spawns.filter((s) => s.kind === 'bomb')
+      expect(bombs).toHaveLength(bombCountFor(spawns.length))
+      expect(bombs.length / spawns.length).toBeCloseTo(BOMB_RATIO, 1)
     }
+  })
+
+  it('총 등장물이 늘면 폭탄도 같이 는다', () => {
+    // 개수로 고정하면 판이 커질수록 폭탄이 묽어져 난이도가 떨어진다.
+    expect(bombCountFor(40)).toBeGreaterThan(bombCountFor(20))
+  })
+
+  it('두더지가 한 마리도 없는 판은 안 나온다', () => {
+    // 비율이 1에 가까워도 분모가 0이 되면 점수가 항상 0이 된다.
+    expect(bombCountFor(1)).toBeLessThan(1)
+    expect(bombCountFor(2)).toBeLessThan(2)
   })
 
   it('두더지 수는 시드마다 다를 수 있다', () => {
