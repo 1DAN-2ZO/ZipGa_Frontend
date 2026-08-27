@@ -28,6 +28,19 @@ export interface UseSessionDeps {
   pool?: readonly GameModule[]
 }
 
+/**
+ * 2·3판째 카운트다운 길이(ms).
+ *
+ * 1판째는 서버가 내려준 starts_at까지 세면 전원이 동시에 시작한다. 그런데 그
+ * 시각은 세션당 한 번뿐이라 2판째에는 이미 20초 넘게 지나 있다 — 남은 시간이
+ * 음수가 되어 카운트다운이 첫 틱(100ms)에 끝나버렸고, 그 화면이 들고 있던
+ * 게임 설명(이름·한 줄 설명·제한시간)이 통째로 안 보였다.
+ *
+ * 판 사이는 이미 폰마다 따로 도는 구간이라(판 결과도 로컬 3초 고정) 여기서
+ * 로컬 기준을 새로 잡아도 "1판째는 전원 동시 시작"이라는 약속은 안 깨진다.
+ */
+export const BRIEFING_MS = 3000
+
 export interface SessionHandle {
   state: SessionState | null
   sessionId: string | null
@@ -86,7 +99,19 @@ export function useSession(deps: UseSessionDeps): SessionHandle {
     }
   }, [deps.client, begin])
 
-  const advance = useCallback((event: SessionEvent) => dispatch(event), [])
+  // advance를 안정적으로 유지하려고 clock은 ref로 읽는다.
+  const clockRef = useRef(deps.clock)
+  clockRef.current = deps.clock
+
+  const advance = useCallback((event: SessionEvent) => {
+    dispatch(event)
+    // roundResult → countdown, 즉 다음 판 진입이다. 서버 시작 시각은 이미
+    // 지났으니 이 판의 기준을 지금부터 다시 잡는다. 마지막 판이면 phase가
+    // final로 가서 카운트다운이 렌더되지 않으므로 값을 새로 잡아도 무해하다.
+    if (event.type === 'ROUND_RESULT_DONE') {
+      setStartsAtMs(clockRef.current.now() + BRIEFING_MS)
+    }
+  }, [])
 
   // 판이 끝날 때마다 그 판 점수를 올린다. 같은 판을 두 번 올리지 않는다.
   useEffect(() => {

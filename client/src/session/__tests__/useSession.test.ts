@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native'
 import type { GameModule, GameResult } from '../../games/types'
 import type { RpcClient } from '../api'
 import { createClock } from '../clock'
-import { useSession } from '../useSession'
+import { BRIEFING_MS, useSession } from '../useSession'
 
 function fakeGame(id: string): GameModule {
   return {
@@ -158,6 +158,28 @@ describe('useSession', () => {
 
     await act(async () => hook.current.advance({ type: 'ROUND_RESULT_DONE' }))
     expect(calls.filter((c) => c.fn === 'end_session')).toHaveLength(1)
+  })
+
+  it('2판째 카운트다운은 판마다 새 기준을 잡는다', async () => {
+    // 서버 starts_at은 세션당 한 번뿐이라 2판째에는 이미 지나 있다. 그대로 두면
+    // 남은 시간이 음수라 카운트다운이 첫 틱에 끝나고, 그 화면이 들고 있는
+    // 게임 설명(이름·한 줄 설명·제한시간)이 통째로 안 보인다.
+    const { deps } = makeDeps()
+    const { result: hook } = await renderHook(() => useSession(deps))
+
+    await act(async () => hook.current.start())
+    await waitFor(() => expect(hook.current.state).not.toBeNull())
+    expect(hook.current.startsAtMs).toBe(Date.parse(STARTED.starts_at))
+
+    await act(async () => hook.current.advance({ type: 'LINEUP_SHOWN' }))
+    await act(async () => hook.current.advance({ type: 'COUNTDOWN_DONE' }))
+    await act(async () => hook.current.advance({ type: 'ROUND_FINISHED', result: result(50) }))
+    await act(async () => hook.current.advance({ type: 'ROUND_RESULT_DONE' }))
+
+    // 2판째 카운트다운 진입. 기준이 "지금부터 BRIEFING_MS 뒤"로 다시 잡혀야 한다.
+    expect(hook.current.state?.phase).toBe('countdown')
+    expect(hook.current.state?.roundIndex).toBe(1)
+    expect(hook.current.startsAtMs).toBe(deps.clock.now() + BRIEFING_MS)
   })
 
   it('시작에 실패하면 에러 코드를 노출한다', async () => {
