@@ -780,7 +780,7 @@ export default function App() {
           onGoHome={handleGoHomeFromGoingHome}
         />
       )}
-      {screen === 'Game' && <GameSandbox onSettings={openSettings} />}
+      {screen === 'Game' && <GameSandbox onSettings={openSettings} onGoHome={() => setScreen('Home')} />}
       {screen === 'Settings' && (
         <Settings
           soundEffectsEnabled={soundEffectsEnabled}
