@@ -43,6 +43,19 @@ export const COLORS = {
    */
   brand: '#A161F7',
 
+  /**
+   * 계란과 병아리 (tapRush 부화 연출).
+   *
+   * 게임 폴더에 하드코딩하지 않는 규칙을 따라 여기에 올린다.
+   * 껍데기는 밝은 회색 배경 위에서 흰 판(surface)과 구별돼야 해서
+   * 크림 쪽으로 살짝 틀었다.
+   */
+  shell: '#FAF3E6',
+  shellLine: '#C9B892',
+  chick: '#FFD84D',
+  chickPale: '#FFE894',
+  beak: '#F2994A',
+
   /** 잘한 것 */
   good: '#159F5B',
   /** 틀린 것·남은 시간이 급한 것 */
