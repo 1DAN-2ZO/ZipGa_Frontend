@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { GestureResponderEvent } from 'react-native';
 import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types';
 import { COLORS } from '../../theme';
 import {
   COUNTDOWN_MS,
+  EXIT_MS,
   FALL_WINDOW_MS,
   RESULT_HOLD_MS,
   ROUNDS,
@@ -12,6 +14,7 @@ import {
   Round,
   RoundKind,
   emergedCm,
+  isOnRuler,
   makeWaits,
   normalize,
   roundCm,
@@ -43,7 +46,7 @@ const C = {
   sky: '#18A0FF',
   ink: '#0B3FA8',
   slot: '#96CFFA', slotOn: '#DCEEFF',
-  wood: '#FCF3B4', woodEdge: '#F3E58A', tick: '#2FA4FF',
+  wood: '#A9601F', woodEdge: '#7E4413', tick: '#FFF3D0',
   white: COLORS.surface,
   bad: COLORS.bad,
 };
@@ -84,10 +87,13 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const waits = useMemo(() => makeWaits(seed), [seed]);
 
   const [stageH, setStageH] = useState(0);
+  const [stageW, setStageW] = useState(0);
+  /** 무대가 화면(Pressable) 안에서 몇 px 아래에 있는지. 터치 좌표를 무대 기준으로 옮길 때 쓴다. */
+  const stageTopRef = useRef(0);
   const [phase, setPhase] = useState<Phase>('count');
   const [roundIdx, setRoundIdx] = useState(0);
   const [big, setBig] = useState('0');
-  const [sub, setSub] = useState('자가 나오는 순간 캐치!');
+  const [sub, setSub] = useState('떨어지는 자를 터치하세요!');
   const [readout, setReadout] = useState<{ text: string; bad: boolean } | null>(null);
   const [done, setDone] = useState<Round[]>([]);
 
@@ -169,6 +175,9 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
     pos.stopAnimation();
     // 자를 "멈춘 길이"에 정확히 세운다 — 눈금과 표시된 숫자가 일치한다
     if (kind === 'caught') pos.setValue(rulerY(cm));
+    // 놓쳤으면 자는 이미 아래로 빠진 뒤다. 애니메이션이 끝나기 직전에 멈춰서
+    // 끄트머리가 걸쳐 있는 일이 없도록 화면 밖으로 확실히 치운다.
+    else if (kind === 'miss') pos.setValue(stageH + rulerH);
 
     setBig(String(Math.round(running(roundsRef.current))));
     if (kind === 'caught') sound.hit();
@@ -188,7 +197,7 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
       else startRound(next);
     }, RESULT_HOLD_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pos, rulerY, later, finish, running, setPhaseBoth]);
+  }, [pos, rulerY, later, finish, running, setPhaseBoth, stageH, rulerH]);
 
   /* ---------- 라운드 시작 ---------- */
   const startRound = useCallback((i: number) => {
@@ -196,7 +205,7 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
     roundIdxRef.current = i;
     setRoundIdx(i);
     setReadout(null);
-    setSub('자가 나오는 순간 캐치!');
+    setSub('떨어지는 자를 터치하세요!');
     setPhaseBoth('count');
     pos.setValue(-rulerH);                    // 완전히 숨긴다
 
@@ -213,7 +222,7 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
     later(() => {
       if (finishedRef.current || phaseRef.current !== 'count') return;
       setPhaseBoth('armed');                  // 여기서부터 파울 판정
-      setBig(String(Math.round(running(roundsRef.current))));
+      setBig('');                             // 숫자를 지운다 — 카운트다운만 세고 사라진다
       later(() => {
         if (finishedRef.current || phaseRef.current !== 'armed') return;
         startAtRef.current = Date.now();
@@ -224,21 +233,56 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
           easing: Easing.in(Easing.quad),     // t² — 자유낙하와 같은 곡선
           useNativeDriver: true,
         }).start();
+        // 눈금을 다 지나면 화면 아래로 빠져나간다. 자가 사라진 뒤에 놓침을 알린다.
         later(() => {
           if (finishedRef.current || phaseRef.current !== 'emerging') return;
-          record('miss', FALL_WINDOW_MS);
+          Animated.timing(pos, {
+            toValue: stageH + rulerH,         // 자 전체가 무대 밑으로 완전히 빠진다
+            duration: EXIT_MS,
+            easing: Easing.linear,            // 이미 빠른 속도라 그대로 미끄러진다
+            useNativeDriver: true,
+          }).start();
+          later(() => {
+            if (finishedRef.current || phaseRef.current !== 'emerging') return;
+            record('miss', FALL_WINDOW_MS);
+          }, EXIT_MS);
         }, FALL_WINDOW_MS);
       }, waits[i]);
     }, COUNTDOWN_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [waits, pos, rulerH, rulerY, later, record, running, setPhaseBoth]);
+  }, [waits, pos, rulerH, rulerY, later, record, running, setPhaseBoth, stageH]);
 
   /* ---------- 터치 ---------- */
-  const tap = useCallback(() => {
+  const tap = useCallback((e: GestureResponderEvent) => {
     if (finishedRef.current) return;
-    if (phaseRef.current === 'armed') record('foul', 0);
-    else if (phaseRef.current === 'emerging') record('caught', Date.now() - startAtRef.current);
-  }, [record]);
+
+    // 자가 나오기도 전에 손이 나가면 파울. 어디를 눌렀는지는 보지 않는다 —
+    // 참지 못하고 손이 먼저 나가는 것 자체가 잡아내려는 신호다.
+    if (phaseRef.current === 'armed') {
+      record('foul', 0);
+      return;
+    }
+    if (phaseRef.current !== 'emerging') return;
+
+    const elapsed = Date.now() - startAtRef.current;
+
+    // 눈금(150cm)을 다 지난 뒤라면 이미 늦었다. 잴 길이가 없으므로 잡히지 않는다.
+    if (elapsed > FALL_WINDOW_MS) return;
+
+    // 터치 지점을 무대 기준으로 옮긴다 (Pressable 은 화면 전체라 그만큼 위에서 시작한다)
+    const touch = {
+      x: e.nativeEvent.locationX,
+      y: e.nativeEvent.locationY - stageTopRef.current,
+    };
+
+    // 지금까지 나온 길이. 애니메이션이 아니라 경과 시간에서 계산한다.
+    const emergedPx = Math.min(span, emergedCm(elapsed) * pxPerCm);
+
+    // 자를 덮지 못했으면 아무 일도 없다. 자는 계속 떨어지고 다시 노려볼 수 있다.
+    if (!isOnRuler(touch, stageW, RULER_W, emergedPx)) return;
+
+    record('caught', elapsed);
+  }, [record, span, pxPerCm, stageW]);
 
   /* ---------- 안전망 ----------
      계약 3번(제한시간이 끝나면 스스로 종료)은 무대 높이 측정과 무관하게 지켜져야 한다.
@@ -278,7 +322,7 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const slotW = 1 / ROUNDS;
 
   return (
-    <Pressable testID="game-root" style={st.wrap} onPressIn={tap} accessibilityLabel="화면을 터치해 자를 멈추세요">
+    <Pressable testID="game-root" style={st.wrap} onPressIn={tap} accessibilityLabel="떨어지는 자를 터치하세요">
       <View style={st.head}>
         <Outlined text={big} size={phase === 'count' ? 104 : 88} />
         <View style={st.subWrap}><Outlined text={sub} size={19} /></View>
@@ -305,9 +349,20 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
 
       {/* testID: 무대 높이를 받기 전에는 라운드가 시작되지 않는다. 테스트에서
           onLayout을 쏘려면 이 View를 집을 수 있어야 한다 */}
-      <View testID="stage" style={st.stage} onLayout={(e) => setStageH(e.nativeEvent.layout.height)}>
+      <View
+        testID="stage" style={st.stage}
+        onLayout={(e) => {
+          const l = e.nativeEvent.layout;
+          setStageH(l.height);
+          setStageW(l.width);
+          stageTopRef.current = l.y;
+        }}
+      >
         <View style={[st.bar, st.barTop]} />
-        {stageH > 0 && (
+        {/* 자는 실제로 나올 때부터 그린다.
+            숨긴 위치에 미리 두면 기기에 따라 가장자리가 얇게 비쳐서
+            카운트다운 중에 "곧 나온다"는 힌트를 준다. */}
+        {stageH > 0 && (phase === 'emerging' || phase === 'result') && (
           <Animated.View
             style={[st.ruler, { height: rulerH, transform: [{ translateY: pos }] }]}
             pointerEvents="none"

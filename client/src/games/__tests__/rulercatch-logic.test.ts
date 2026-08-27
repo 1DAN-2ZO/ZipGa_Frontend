@@ -8,6 +8,7 @@ import {
   WAIT_MIN_MS,
   averageCaughtMs,
   emergedCm,
+  isOnRuler,
   makeWaits,
   normalize,
   roundCm,
@@ -156,5 +157,52 @@ describe('averageCaughtMs', () => {
   it('한 번도 못 잡았으면 null 이다', () => {
     expect(averageCaughtMs([foul(), missed()])).toBeNull();
     expect(averageCaughtMs([])).toBeNull();
+  });
+});
+
+describe('isOnRuler — 자를 덮었는지 판단', () => {
+  const STAGE_W = 360;
+  const RULER_W = 120;          // 무대 한가운데 120~240px 구간에 서 있다
+  const EMERGED = 200;          // 지금까지 200px 나왔다
+
+  const hit = (x: number, y: number) => isOnRuler({ x, y }, STAGE_W, RULER_W, EMERGED);
+
+  it('자 한가운데를 찍으면 잡는다', () => {
+    expect(hit(180, 100)).toBe(true);
+  });
+
+  it('자의 좌우 끝을 찍어도 잡는다', () => {
+    expect(hit(120, 100)).toBe(true);
+    expect(hit(240, 100)).toBe(true);
+  });
+
+  it('자보다 왼쪽이나 오른쪽을 찍으면 못 잡는다', () => {
+    expect(hit(119, 100)).toBe(false);
+    expect(hit(241, 100)).toBe(false);
+    expect(hit(10, 100)).toBe(false);
+  });
+
+  it('아직 자가 안 닿은 아래쪽을 찍으면 못 잡는다', () => {
+    expect(hit(180, EMERGED + 1)).toBe(false);
+    expect(hit(180, 400)).toBe(false);
+  });
+
+  it('자가 나온 끝자락을 정확히 찍으면 잡는다', () => {
+    expect(hit(180, EMERGED)).toBe(true);
+  });
+
+  it('무대 맨 위도 자 몸통이다', () => {
+    expect(hit(180, 0)).toBe(true);
+  });
+
+  it('자가 아직 안 나왔으면 어디를 찍어도 못 잡는다', () => {
+    expect(isOnRuler({ x: 180, y: 0 }, STAGE_W, RULER_W, 0)).toBe(false);
+    expect(isOnRuler({ x: 180, y: 50 }, STAGE_W, RULER_W, 0)).toBe(false);
+  });
+
+  it('자가 길게 나올수록 잡을 수 있는 범위가 넓어진다', () => {
+    const deep = (y: number) => isOnRuler({ x: 180, y }, STAGE_W, RULER_W, 400);
+    expect(deep(300)).toBe(true);         // 200px 일 때는 못 잡던 자리
+    expect(hit(180, 300)).toBe(false);
   });
 });
