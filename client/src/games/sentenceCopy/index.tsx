@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
-import { COLORS } from '../../theme'
+import { colors } from '../../theme/colors'
 import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types'
 import { buildSequence, computeResult, isExactMatch } from './logic'
@@ -33,6 +33,7 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const [correctCount, setCorrectCount] = useState(0)
   const [isOver, setIsOver] = useState(false)
   const [isWrong, setIsWrong] = useState(false)
+  const [isFocused, setIsFocused] = useState(false)
 
   // 시계는 하나뿐이다. 화면 표시도 종료 판정도 전부 이 deadline에서 나온다.
   // 틱을 세는 방식은 앱이 백그라운드로 갔을 때 타이머가 멈춰 시간이 늘어난다 — 공정성이 깨진다.
@@ -193,12 +194,14 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
       </ScrollView>
 
       <TextInput
-        style={[styles.input, isWrong && styles.inputWrong]}
+        style={[styles.input, isFocused && styles.inputFocused, isWrong && styles.inputWrong]}
         value={input}
         onChangeText={handleChangeText}
         onSubmitEditing={handleSubmit}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
         placeholder="여기에 똑같이 입력"
-        placeholderTextColor={COLORS.textFaint}
+        placeholderTextColor={colors.textMuted}
         autoFocus
         autoCorrect={false}
         autoCapitalize="none"
@@ -224,14 +227,14 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, backgroundColor: COLORS.bg },
+  container: { flex: 1, padding: 24, backgroundColor: colors.background },
   hud: { flexDirection: 'row', justifyContent: 'space-between' },
   hudBlock: { alignItems: 'flex-start' },
   hudBlockRight: { alignItems: 'flex-end' },
-  hudLabel: { color: COLORS.textMuted, fontSize: 13, marginBottom: 2 },
-  count: { color: COLORS.accent, fontSize: 44, fontWeight: '800' },
-  timer: { color: COLORS.text, fontSize: 44, fontWeight: '800' },
-  timerUrgent: { color: COLORS.bad },
+  hudLabel: { color: colors.textMuted, fontSize: 13, marginBottom: 2 },
+  count: { color: colors.primary, fontSize: 44, fontWeight: '800' },
+  timer: { color: colors.primary, fontSize: 44, fontWeight: '800' },
+  timerUrgent: { color: colors.danger },
   /**
    * minHeight가 있는 이유: flex:1은 자리가 모자라면 0까지 줄어든다.
    * 그러면 따라 쓸 문장이 통째로 사라진다 — 이 게임에서는 문장이
@@ -239,24 +242,28 @@ const styles = StyleSheet.create({
    */
   stage: { flex: 1, minHeight: 72 },
   stageContent: { flexGrow: 1, justifyContent: 'center', paddingVertical: 8 },
-  prompt: { color: COLORS.textMuted, fontSize: 14, marginBottom: 10 },
-  sentence: { color: COLORS.text, fontSize: 30, fontWeight: '700', lineHeight: 42 },
+  prompt: { color: colors.textMuted, fontSize: 14, marginBottom: 10 },
+  sentence: { color: colors.textPrimary, fontSize: 30, fontWeight: '700', lineHeight: 42 },
   /** 키보드가 올라온 동안 쓰는 축소본 */
   countCompact: { fontSize: 26 },
   sentenceCompact: { fontSize: 24, lineHeight: 33 },
   input: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.white,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: COLORS.border,
-    color: COLORS.text,
+    borderColor: colors.divider,
+    color: colors.textPrimary,
     fontSize: 20,
     paddingHorizontal: 16,
     paddingVertical: 14,
+    // 웹은 우리 borderColor 위에 브라우저 기본 파란 포커스 링(outline)을 덧그린다 —
+    // outlineWidth는 네이티브에는 없는 웹 전용 스타일 키다.
+    outlineWidth: 0,
   },
-  inputWrong: { borderColor: COLORS.bad },
-  hint: { color: COLORS.textFaint, fontSize: 13, marginTop: 10, textAlign: 'center' },
-  hintWrong: { color: COLORS.bad, fontWeight: '700' },
+  inputFocused: { borderColor: colors.primary },
+  inputWrong: { borderColor: colors.danger },
+  hint: { color: colors.textMuted, fontSize: 13, marginTop: 10, textAlign: 'center' },
+  hintWrong: { color: colors.danger, fontWeight: '700' },
 })
 
 export const sentenceCopy: GameModule = {

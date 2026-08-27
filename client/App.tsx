@@ -672,6 +672,7 @@ export default function App() {
       {screen === 'Lobby' && (
         <Lobby
           players={lobbyPlayers}
+          myPlayerId={myPlayerId ?? ''}
           onlinePlayerIds={onlinePlayerIds}
           threshold={40}
           isHost={isHost}
