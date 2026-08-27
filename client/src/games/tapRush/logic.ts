@@ -20,3 +20,26 @@ export function normalize(taps: number): number {
 export function isComplete(taps: number): boolean {
   return taps >= TARGET_TAPS
 }
+
+/**
+ * 계란에 금이 하나 더 가는 데 필요한 타수.
+ *
+ * 목표(150)를 딱 나누어떨어지지 않게 잡았다. 마지막 금이 140에서 나오고
+ * 부화까지 10회가 더 남아, "다 깨졌는데 아직 안 나온다"는 구간이 생긴다.
+ * 나누어떨어지면 그 마지막 긴장이 없어진다.
+ */
+export const TAPS_PER_CRACK = 20
+
+/**
+ * 부화 전까지 생기는 금의 총 개수.
+ *
+ * 목표에 닿기 전 마지막 금까지 세므로 -1을 빼고 나눈다.
+ * 그림(Egg.tsx)에 이 개수만큼 금이 그려져 있다.
+ */
+export const CRACK_STAGES = Math.floor((TARGET_TAPS - 1) / TAPS_PER_CRACK)
+
+/** 지금 몇 번째 금까지 가 있는지. 0이면 아직 멀쩡한 계란이다. */
+export function crackStage(taps: number): number {
+  if (taps <= 0) return 0
+  return Math.min(Math.floor(taps / TAPS_PER_CRACK), CRACK_STAGES)
+}

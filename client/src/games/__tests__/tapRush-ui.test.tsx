@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import React from 'react'
 import { tapRush } from '../tapRush'
-import { normalize, TARGET_TAPS } from '../tapRush/logic'
+import { CRACK_STAGES, normalize, TAPS_PER_CRACK, TARGET_TAPS } from '../tapRush/logic'
+import { HATCH_HOLD_MS } from '../tapRush'
 
 const Game = tapRush.Component
 const LIMIT = tapRush.info.timeLimitSec
@@ -83,11 +84,12 @@ describe('tapRush 화면', () => {
     expect(result()).toMatchObject({ score: 30, normalizedScore: normalize(30) })
   })
 
-  it('목표를 채우면 시간이 남아도 즉시 끝난다', async () => {
+  it('목표를 채우면 시간이 남아도 끝난다', async () => {
     const { onFinish, tap, result } = await renderGame()
 
     await advance(3_000)
     await tap(TARGET_TAPS)
+    await advance(HATCH_HOLD_MS)
 
     expect(onFinish).toHaveBeenCalledTimes(1)
     expect(result()).toMatchObject({
@@ -103,8 +105,54 @@ describe('tapRush 화면', () => {
   it('목표를 채운 뒤 더 두드려도 점수가 안 오른다', async () => {
     const { tap, result } = await renderGame()
     await tap(TARGET_TAPS + 20)
+    await advance(HATCH_HOLD_MS)
 
     expect(result().score).toBe(TARGET_TAPS)
+  })
+
+  it('부화를 보여주는 동안은 아직 제출하지 않는다', async () => {
+    // 목표를 채운 순간 곧장 끝내면 병아리가 한 프레임 스치고 만다.
+    const { onFinish, tap } = await renderGame()
+    await tap(TARGET_TAPS)
+
+    expect(screen.getByTestId('egg-hatched')).toBeTruthy()
+    expect(onFinish).not.toHaveBeenCalled()
+
+    await advance(HATCH_HOLD_MS)
+    expect(onFinish).toHaveBeenCalledTimes(1)
+  })
+
+  it('연출 시간은 걸린 시간에 안 섞인다', async () => {
+    // 섞이면 부화한 사람이 오히려 느린 것으로 기록돼 순위가 뒤집힌다.
+    const { tap, result } = await renderGame()
+    await advance(3_000)
+    await tap(TARGET_TAPS)
+    await advance(HATCH_HOLD_MS)
+
+    expect(result().tiebreakMs).toBeLessThan(3_000 + HATCH_HOLD_MS)
+  })
+
+  it('스무 번마다 계란에 금이 하나씩 는다', async () => {
+    const { tap } = await renderGame()
+
+    expect(screen.queryByTestId('crack-0')).toBeNull()
+
+    await tap(TAPS_PER_CRACK)
+    expect(screen.getByTestId('crack-0')).toBeTruthy()
+    expect(screen.queryByTestId('crack-1')).toBeNull()
+
+    await tap(TAPS_PER_CRACK)
+    expect(screen.getByTestId('crack-1')).toBeTruthy()
+  })
+
+  it('부화 직전에는 금이 다 가 있다', async () => {
+    const { tap } = await renderGame()
+    await tap(TARGET_TAPS - 1)
+
+    expect(screen.getByTestId(`crack-${CRACK_STAGES - 1}`)).toBeTruthy()
+    // 아직 계란이다 — 마지막 한 번이 남았다.
+    expect(screen.getByTestId('egg-intact')).toBeTruthy()
+    expect(screen.queryByTestId('egg-hatched')).toBeNull()
   })
 
   it('종료 후 시간이 더 흘러도 onFinish를 다시 부르지 않는다', async () => {
