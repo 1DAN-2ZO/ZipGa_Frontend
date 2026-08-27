@@ -23,7 +23,7 @@ import {
 import { supabase } from './src/lib/supabase'
 import { checkRoom, createRoom, ensureAnonymousSession, joinRoom, leaveRoom, leaveRoomBeacon, rejoinRoom, RoomError, setSessionPeriod } from './src/room/api'
 import { listAllRoomPlayersEver, listPlayers, subscribeToPlayers } from './src/room/players'
-import { joinRoomPresence } from './src/room/presence'
+import { joinRoomPresence, type PresenceHandle } from './src/room/presence'
 import { listSessionScores, waitForAllScores } from './src/room/scores'
 import {
   getActiveSession,
@@ -168,6 +168,9 @@ export default function App() {
   /** 이 방에 지금 접속 중인 플레이어 id들 (Supabase Presence). players 테이블의
    * "방 소속 여부"와는 별개로 "화면을 보고 있나"만 나타낸다. */
   const [onlinePlayerIds, setOnlinePlayerIds] = useState<Set<string>>(new Set())
+  /** 방장을 제외한 인원 중 "게임 시작" 준비를 마친 사람들 (Presence, §presence.ts). */
+  const [readyPlayerIds, setReadyPlayerIds] = useState<Set<string>>(new Set())
+  const presenceHandleRef = useRef<PresenceHandle | null>(null)
 
   const [nicknameSheetVisible, setNicknameSheetVisible] = useState(false)
   const pendingAfterNicknameRef = useRef<((nickname: string) => void) | null>(null)
@@ -230,10 +233,25 @@ export default function App() {
   useEffect(() => {
     if (!roomId || !myPlayerId || !nickname) {
       setOnlinePlayerIds(new Set())
+      setReadyPlayerIds(new Set())
+      presenceHandleRef.current = null
       return
     }
-    return joinRoomPresence(roomId, { playerId: myPlayerId, nickname }, setOnlinePlayerIds)
+    const handle = joinRoomPresence(roomId, { playerId: myPlayerId, nickname }, (presence) => {
+      setOnlinePlayerIds(presence.onlinePlayerIds)
+      setReadyPlayerIds(presence.readyPlayerIds)
+    })
+    presenceHandleRef.current = handle
+    return () => {
+      presenceHandleRef.current = null
+      handle.unsubscribe()
+    }
   }, [roomId, myPlayerId, nickname])
+
+  /** 대기중 → 준비완료. 한 방향뿐이다 — 되돌리는 버튼은 없다. */
+  const handleReady = useCallback(() => {
+    presenceHandleRef.current?.setReady(true)
+  }, [])
 
   // 방장 승계 알림. lobbyPlayers가 이 방에서 처음 채워진 스냅샷은 기준값으로만 잡고
   // (방금 만들었든 막 들어왔든, 그 시점의 방장 여부는 "승계"가 아니다) 그 이후에
@@ -312,6 +330,9 @@ export default function App() {
   // subscribeToPlayers만으로는 이 갱신을 못 잡는다.
   useEffect(() => {
     if (screen !== 'Lobby' || !roomId) return
+    // 다음 판을 위해 준비 상태를 되돌린다 — 방금 세션이 끝나고 막 돌아온 참이든
+    // 방금 입장했든, 여기서는 항상 "아직 준비 안 함"이 맞다.
+    presenceHandleRef.current?.setReady(false)
     let cancelled = false
     getNextSessionDueAt(roomId)
       .then((ms) => {
@@ -718,10 +739,15 @@ export default function App() {
           players={lobbyPlayers}
           myPlayerId={myPlayerId ?? ''}
           onlinePlayerIds={onlinePlayerIds}
+          readyPlayerIds={readyPlayerIds}
+          onReady={handleReady}
           threshold={40}
           isHost={isHost}
           nextSessionLabel={nextSessionLabel}
-          canStart={lobbyPlayers.length >= 2}
+          canStart={
+            lobbyPlayers.length >= 2 &&
+            lobbyPlayers.filter((p) => !p.isHost).every((p) => readyPlayerIds.has(p.id))
+          }
           onStartSession={() => session.start()}
           onLeaveRoom={handleLeaveRoom}
           onSettings={openSettings}
