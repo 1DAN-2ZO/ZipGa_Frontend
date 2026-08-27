@@ -24,7 +24,7 @@ const drawSeed = () => String(100000 + Math.floor(Math.random() * 900000))
  * 여기서는 시드를 직접 넣어 "같은 시드 = 같은 문제"가 성립하는지 맞춰본다.
  * 게임 선택도 레지스트리를 거치므로 registry.ts에 등록만 하면 여기에 뜬다.
  */
-export function GameSandbox({ onSettings }: { onSettings: () => void }) {
+export function GameSandbox({ onSettings, onGoHome }: { onSettings: () => void; onGoHome: () => void }) {
   const [phase, setPhase] = useState<Phase>({ name: 'ready' })
   const [seedText, setSeedText] = useState(drawSeed)
 
@@ -83,7 +83,12 @@ export function GameSandbox({ onSettings }: { onSettings: () => void }) {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title="미니게임 확인" onSettings={onSettings} />
+      <ScreenHeader
+        title="미니게임 확인"
+        onSettings={onSettings}
+        leadingIcon="home"
+        onLeadingIconPress={onGoHome}
+      />
       <View style={styles.center}>
         <Text style={styles.label}>같이 하는 사람과 같은 시드를 넣으세요</Text>
         <TextInput

@@ -15,6 +15,8 @@ export interface GoingHomeProps {
   onOpenStore: () => void
   /** 재입장. 실제로는 안 갔을 때 */
   onStay: () => void
+  /** 이 방을 완전히 접고 첫 화면으로 */
+  onGoHome: () => void
 }
 
 /**
@@ -28,7 +30,7 @@ export interface GoingHomeProps {
  * 못 보고, 못 떠난 사람은 눈앞에서 바로 누를 수 있다
  * (설계_웹배포와알림 §B.3).
  */
-export function GoingHome({ reason, launch, onSettings, onOpenStore, onStay }: GoingHomeProps) {
+export function GoingHome({ reason, launch, onSettings, onOpenStore, onStay, onGoHome }: GoingHomeProps) {
   // 네이티브에서만 판정이 진짜 신호다. 열린 게 확실할 때만 안내를 접는다.
   const confirmedOpen = launch === 'opened' && Platform.OS !== 'web'
 
@@ -57,7 +59,10 @@ export function GoingHome({ reason, launch, onSettings, onOpenStore, onStay }: G
         )}
       </View>
 
-      <PillButton label="아직 안 갈래" variant="secondary" icon="undo" onPress={onStay} />
+      <View style={styles.buttons}>
+        <PillButton label="첫 화면으로" variant="secondary" icon="home" onPress={onGoHome} />
+        <PillButton label="아직 안 갈래" variant="secondary" icon="undo" onPress={onStay} />
+      </View>
     </View>
   )
 }
@@ -74,6 +79,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
+  },
+  buttons: {
     gap: 12,
   },
   headline: {
