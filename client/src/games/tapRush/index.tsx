@@ -93,7 +93,14 @@ function TapRushGame({ seed, timeLimitSec, onFinish }: GameProps) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+  /**
+   * userSelect: 연타하는 게임이라 웹에서 글자가 드래그 선택된다.
+   * react-native-web은 Text를 선택 가능한 요소로 그리기 때문에, 숫자를
+   * 빠르게 두드리면 파랗게 잡히고 커서가 텍스트 선택으로 바뀐다.
+   * user-select는 CSS 상속이라 루트에만 걸면 자식 Text까지 따라온다.
+   * (selectable prop은 RNW에서 deprecated — styles.userSelect를 쓰라고 경고한다)
+   */
+  root: { flex: 1, backgroundColor: COLORS.bg, userSelect: 'none' },
   area: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 24 },
   remain: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 20 },
   count: { fontSize: 96, fontWeight: '800', color: COLORS.brand },

@@ -26,10 +26,12 @@ import { listAllRoomPlayersEver, listPlayers, subscribeToPlayers } from './src/r
 import { joinRoomPresence } from './src/room/presence'
 import { listSessionScores, waitForAllScores } from './src/room/scores'
 import {
-  getActiveSessionId,
+  getActiveSession,
   getNextSessionDueAt,
   subscribeActiveSession,
   subscribeSessionStart,
+  waitBeforeBounce,
+  type ActiveSession,
 } from './src/room/sessions'
 import { CreateRoom } from './src/screens/CreateRoom'
 import { Countdown } from './src/screens/Countdown'
@@ -81,6 +83,7 @@ const SCREENS = [
   'GameCheck',
 ] as const
 type ScreenName = (typeof SCREENS)[number]
+
 
 /** remainingMs가 0 이하면 null(=주기 도달, 배지로 전환). 아니면 "분:초" */
 function formatCountdown(remainingMs: number): string | null {
@@ -156,8 +159,8 @@ export default function App() {
   const [lobbyPlayers, setLobbyPlayers] = useState<LobbyPlayer[]>([])
   /** end_session 응답을 못 받았을 때(누군가 이미 먼저 끝냄) 직접 재구성한 전체 순위 */
   const [fallbackResultPlayers, setFallbackResultPlayers] = useState<ResultPlayer[] | null>(null)
-  /** 이 방에 지금 진행 중인(끝나지 않은) 세션이 있는지. S11 대기 화면 라우팅에만 쓴다 */
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  /** 이 방에 지금 진행 중인(끝나지 않은) 세션. S11 대기 화면 라우팅에만 쓴다 */
+  const [activeSession, setActiveSession] = useState<ActiveSession | null>(null)
   /** 다음 세션 "슬슬 할 때" 알림 기준 시각(ms epoch). 로비 배지·카운트다운 표시용 */
   const [nextSessionDueAtMs, setNextSessionDueAtMs] = useState<number | null>(null)
   /** 로비에 떠 있는 동안만 1초마다 갱신 — 카운트다운 텍스트 재계산 트리거 */
@@ -264,11 +267,11 @@ export default function App() {
   // 입장·재입장한 사람을 로비 대신 대기 화면(S11)으로 돌리는 데만 쓴다.
   useEffect(() => {
     if (!roomId) {
-      setActiveSessionId(null)
+      setActiveSession(null)
       return
     }
-    getActiveSessionId(roomId).then(setActiveSessionId).catch(() => {})
-    return subscribeActiveSession(roomId, setActiveSessionId)
+    getActiveSession(roomId).then(setActiveSession).catch(() => {})
+    return subscribeActiveSession(roomId, setActiveSession)
   }, [roomId])
 
   // 복귀 동기화 — 탭이 숨겨져 있던 동안 온 Realtime 신호는 이미 지나갔다. 다시 보이면
@@ -279,7 +282,7 @@ export default function App() {
 
     function onVisibilityChange() {
       if (document.visibilityState !== 'visible' || !roomId) return
-      getActiveSessionId(roomId).then(setActiveSessionId).catch(() => {})
+      getActiveSession(roomId).then(setActiveSession).catch(() => {})
       listPlayers(roomId).then(setLobbyPlayers).catch(() => {})
     }
 
@@ -334,18 +337,29 @@ export default function App() {
   // 이미 진행 중인 세션의 sessions INSERT는 놓쳤으므로(subscribeSessionStart는 그 이후의
   // INSERT만 본다) session.state가 안 채워진다 — 그런 사람은 로비 대신 대기 화면으로 보낸다.
   // (mdfile/프론트엔드_화면명세.md S11 — "세션 도중 입장·재입장한 사람은 끼지 않는다")
+  //
+  // 다만 바로 판단하면 안 된다. 이 신호(subscribeActiveSession)와 합류 신호
+  // (subscribeSessionStart)는 같은 INSERT를 서로 다른 채널로 듣기 때문에 도착
+  // 순서가 보장되지 않는다. 이 신호가 먼저 오면 "세션은 있는데 나는 아직 합류를
+  // 못 했다"는 상태가 잠깐 생기는데, 그걸 늦게 들어온 사람으로 오해하면 같이
+  // 시작한 사람이 통째로 대기 화면에 갇힌다 — 세션이 끝나야 빠져나온다.
+  //
+  // 그래서 시작 시각 기준으로 유예를 두고, 그 사이에 합류 신호가 오면
+  // session.state가 채워지면서 이 effect가 다시 돌아 타이머를 걷어간다.
   useEffect(() => {
-    if (screen === 'Lobby' && activeSessionId !== null && session.state === null) {
-      setScreen('NextSessionWait')
-    }
-  }, [screen, activeSessionId, session.state])
+    if (screen !== 'Lobby' || activeSession === null || session.state !== null) return
 
-  // 대기 중이던 세션이 끝나면(activeSessionId가 null이 되면) 자동으로 로비로 돌아간다.
+    const waitMs = waitBeforeBounce(activeSession.startsAt, clockRef.current.now())
+    const timer = setTimeout(() => setScreen('NextSessionWait'), waitMs)
+    return () => clearTimeout(timer)
+  }, [screen, activeSession, session.state])
+
+  // 대기 중이던 세션이 끝나면(activeSession이 null이 되면) 자동으로 로비로 돌아간다.
   useEffect(() => {
-    if (screen === 'NextSessionWait' && activeSessionId === null) {
+    if (screen === 'NextSessionWait' && activeSession === null) {
       setScreen('Lobby')
     }
-  }, [screen, activeSessionId])
+  }, [screen, activeSession])
 
   // end_session은 "먼저 도착한 한 번만" 실행된다 — 뒤에 도착한 클라이언트는
   // 이 자리에서 SESSION_NOT_ACTIVE를 받는데, 이건 실제 오류가 아니라 예상된 경쟁
@@ -686,7 +700,9 @@ export default function App() {
           }}
         />
       )}
-      {screen === 'NextSessionWait' && <NextSessionWait onSettings={openSettings} />}
+      {screen === 'NextSessionWait' && (
+        <NextSessionWait onSettings={openSettings} onLeaveRoom={handleLeaveRoom} />
+      )}
       {session.state && screen === 'GameReveal' && (
         <GameReveal plan={session.state.plan} onDone={handleGameRevealDone} />
       )}
