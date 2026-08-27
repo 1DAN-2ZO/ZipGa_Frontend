@@ -17,6 +17,8 @@ export interface LobbyPlayer {
 
 export interface LobbyProps {
   players: LobbyPlayer[]
+  /** 이 기기 사용자 자신의 id. 목록에서 내 행을 보라색으로 눈에 띄게 표시하는 데 쓴다. */
+  myPlayerId: string
   /** 지금 이 방에 접속 중인 플레이어 id들 (Supabase Presence). 화면 표시(초록 점)에만 쓴다 —
    * 방 소속 여부(강퇴·나감) 판단에는 절대 안 쓴다, 그건 players 목록 자체가 이미 반영한다. */
   onlinePlayerIds: Set<string>
@@ -41,6 +43,7 @@ export interface LobbyProps {
 
 export function Lobby({
   players,
+  myPlayerId,
   onlinePlayerIds,
   threshold,
   isHost,
@@ -80,7 +83,12 @@ export function Lobby({
           return (
             <View>
               {showDivider && <ThresholdDivider threshold={threshold} />}
-              <PlayerRow player={item} penalized={item.avgScore < threshold} online={onlinePlayerIds.has(item.id)} />
+              <PlayerRow
+                player={item}
+                penalized={item.avgScore < threshold}
+                online={onlinePlayerIds.has(item.id)}
+                isMe={item.id === myPlayerId}
+              />
             </View>
           )
         }}
@@ -115,27 +123,31 @@ function PlayerRow({
   player,
   penalized,
   online,
+  isMe,
 }: {
   player: LobbyPlayer
   penalized: boolean
   /** Presence 기준 접속 여부. 끊겼다고 방에서 나간 건 아니다 — 그냥 흐리게만 표시한다 */
   online: boolean
+  /** 이 행이 나 자신인지. 보라 배경으로 눈에 띄게 한다 — 탈락 배경과 같은 색이라 글자색도 같이 맞춘다. */
+  isMe: boolean
 }) {
   const delta = rankDelta(player.rank, player.previousRank)
+  const onColor = penalized || isMe
   return (
-    <View style={[styles.row, penalized && styles.rowPenalized]}>
+    <View style={[styles.row, onColor && styles.rowPenalized]}>
       <View style={styles.leftGroup}>
         <View style={styles.rankBadge}>
           <Text style={styles.rankText}>{player.rank}</Text>
         </View>
         <View style={[styles.onlineDot, online ? styles.onlineDotOn : styles.onlineDotOff]} />
-        <Text style={[styles.name, penalized && styles.nameOnColor]} numberOfLines={1}>
+        <Text style={[styles.name, onColor && styles.nameOnColor]} numberOfLines={1}>
           {player.nickname}
           {player.isHost ? ' 👑' : ''}
         </Text>
-        <Text style={[styles.deltaIcon, penalized && styles.deltaIconOnColor]}>{deltaIcon(delta)}</Text>
+        <Text style={[styles.deltaIcon, onColor && styles.deltaIconOnColor]}>{deltaIcon(delta)}</Text>
       </View>
-      <Text style={[styles.score, penalized && styles.scoreOnColor]}>{player.avgScore.toFixed(0)}점</Text>
+      <Text style={[styles.score, onColor && styles.scoreOnColor]}>{player.avgScore.toFixed(0)}점</Text>
     </View>
   )
 }
