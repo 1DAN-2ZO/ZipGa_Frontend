@@ -201,12 +201,6 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
     });
   }, [onFinish, limitMs]);
 
-  const pauseClock = useCallback(() => {
-    if (!runningRef.current) return;
-    elapsedRef.current += Date.now() - segStartRef.current;
-    runningRef.current = false;
-    if (endTimerRef.current) { clearTimeout(endTimerRef.current); endTimerRef.current = null; }
-  }, []);
 
   const resumeClock = useCallback(() => {
     if (runningRef.current || finishedRef.current) return;
@@ -325,7 +319,7 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
         openRef.current = [];
 
         if (matchedRef.current === PAIRS) {
-          pauseClock();
+          // 시계는 멈추지 않는다. 다음 판 미리보기도 제한시간 안에서 흐른다.
           setBanner('클리어!');
           later(() => {
             collectCards();
@@ -344,7 +338,7 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
         lockRef.current = false;
       }, FLIPBACK_MS);
     },
-    [done, boards, playMs, flipTo, pauseClock, collectCards, openBoard, later, sound],
+    [done, boards, playMs, flipTo, collectCards, openBoard, later, sound],
   );
 
   /* ---------- 시작 / 정리 ----------
@@ -370,6 +364,7 @@ function CardMatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
     setLeft(limitMs);
 
     openBoard(0);
+    resumeClock();                          // 미리보기부터 시계가 흐른다
     tickRef.current = setInterval(() => {
       setLeft(Math.max(0, limitMs - playMs()));
     }, 100);
