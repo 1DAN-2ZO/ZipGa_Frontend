@@ -43,8 +43,14 @@ export const TARGET_PAIRS = 10;
  */
 export const PREVIEW_MS = 3000;
 
-/** 짝이 아닐 때 다시 덮이기까지의 시간. */
-export const FLIPBACK_MS = 700;
+/**
+ * 짝이 아닐 때 다시 덮이기까지의 시간.
+ *
+ * 이 동안에는 아무 카드도 누를 수 없다. 두 장을 눈에 담을 시간이 필요해서다.
+ * 다만 20초짜리 속도 게임이라 길면 손이 묶인 느낌이 든다.
+ * 뒤집히는 동작 자체가 0.24초라, 0.5초면 보고 넘어가기에 모자라지 않다.
+ */
+export const FLIPBACK_MS = 500;
 
 export interface Board {
   /** 이 판에 쓸 카드 아트 세트 인덱스 */
