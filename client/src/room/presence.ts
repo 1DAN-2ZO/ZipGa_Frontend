@@ -12,6 +12,48 @@ export interface RoomPresence {
   readyPlayerIds: Set<string>
 }
 
+/**
+ * Presence 채널에 실제로 실려 나가는 한 줄.
+ *
+ * at은 track한 시각이다. 같은 사람 앞으로 접속이 둘 이상 잡히는 순간을
+ * 가려내려고 넣는다 (reducePresence 참고).
+ */
+export interface TrackedPresence extends PresenceMeta {
+  ready: boolean
+  at: number
+}
+
+/**
+ * Presence 상태를 화면이 쓰는 두 집합으로 줄인다.
+ *
+ * 한 사람 앞에 접속이 둘 이상 잡힐 수 있다. 폰이 절전에서 깨거나 소켓이
+ * 잠깐 끊겼다 붙으면, 서버가 옛 접속을 아직 안 거둔 채로 새 접속이 먼저
+ * 들어온다. 이때 예전에는 "하나라도 ready면 준비완료"로 읽어서, 지난 세션에
+ * 준비를 눌렀던 옛 접속이 남아 있는 동안 아무도 누르지 않았는데 준비완료로
+ * 보였다 — 방장 화면에서는 시작 버튼까지 열렸다.
+ *
+ * 그래서 사람마다 **가장 최근 접속 한 줄만** 본다. 접속해 있다는 사실
+ * 자체(onlinePlayerIds)는 어느 줄이든 하나만 있으면 참이라 그대로 모은다.
+ */
+export function reducePresence(
+  state: Record<string, TrackedPresence[]>,
+): RoomPresence {
+  const onlinePlayerIds = new Set<string>()
+  const readyPlayerIds = new Set<string>()
+
+  for (const presences of Object.values(state)) {
+    let newest: TrackedPresence | null = null
+    for (const p of presences) {
+      onlinePlayerIds.add(p.playerId)
+      // at이 없는 줄(옛 버전이 track한 것)은 가장 오래된 것으로 친다
+      if (newest === null || (p.at ?? 0) >= (newest.at ?? 0)) newest = p
+    }
+    if (newest?.ready) readyPlayerIds.add(newest.playerId)
+  }
+
+  return { onlinePlayerIds, readyPlayerIds }
+}
+
 export interface PresenceHandle {
   unsubscribe: () => void
   /** 내 준비 상태를 알린다. Presence라서 탭을 닫거나 연결이 끊기면 자동으로 빠진다 —
@@ -44,24 +86,17 @@ export function joinRoomPresence(
   let ready = false
 
   const emit = () => {
-    const state = channel.presenceState<PresenceMeta & { ready: boolean }>()
-    const onlinePlayerIds = new Set<string>()
-    const readyPlayerIds = new Set<string>()
-    for (const presences of Object.values(state)) {
-      for (const p of presences) {
-        onlinePlayerIds.add(p.playerId)
-        if (p.ready) readyPlayerIds.add(p.playerId)
-      }
-    }
-    onChange({ onlinePlayerIds, readyPlayerIds })
+    onChange(reducePresence(channel.presenceState<TrackedPresence>()))
   }
+
+  const track = () => channel.track({ ...meta, ready, at: Date.now() })
 
   channel
     .on('presence', { event: 'sync' }, emit)
     .on('presence', { event: 'join' }, emit)
     .on('presence', { event: 'leave' }, emit)
     .subscribe((status) => {
-      if (status === 'SUBSCRIBED') channel.track({ ...meta, ready })
+      if (status === 'SUBSCRIBED') track()
     })
 
   return {
@@ -70,7 +105,7 @@ export function joinRoomPresence(
     },
     setReady: (next: boolean) => {
       ready = next
-      channel.track({ ...meta, ready })
+      track()
     },
   }
 }

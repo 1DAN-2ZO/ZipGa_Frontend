@@ -264,6 +264,22 @@ export default function App() {
     presenceHandleRef.current?.setReady(true)
   }, [])
 
+  /**
+   * 세션이 시작되는 순간 준비 상태를 소모한다.
+   *
+   * 준비는 "이번 판 시작하자"는 한 번짜리 신호다. 시작된 뒤에도 켜져 있으면
+   * 다음 로비까지 그대로 따라와서, 아무도 안 눌렀는데 준비완료로 보인다.
+   *
+   * 로비로 돌아올 때도 지우지만(아래 Lobby 효과) 그것만으로는 모자란다 —
+   * 벌칙자는 로비를 안 거치고, 결과 화면에 머무는 몇 초 동안은 남들 눈에
+   * 아직 준비완료로 보이며, 시작 신호를 놓쳐 로비에 남은 폰은 화면이 안
+   * 바뀌어 그 효과가 아예 안 돈다. 시작 시점에 지우면 그 셋이 다 덮인다.
+   */
+  const sessionRunning = session.state !== null
+  useEffect(() => {
+    if (sessionRunning) presenceHandleRef.current?.setReady(false)
+  }, [sessionRunning])
+
   // 방장 승계 알림. lobbyPlayers가 이 방에서 처음 채워진 스냅샷은 기준값으로만 잡고
   // (방금 만들었든 막 들어왔든, 그 시점의 방장 여부는 "승계"가 아니다) 그 이후에
   // false -> true로 바뀔 때만 "네가 방장이 됐다"고 알린다.
