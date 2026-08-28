@@ -2,7 +2,6 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react-native';
 import { gugudan } from '../gugudan';
 import {
-  COUNTDOWN_MS,
   WRONG_CLEAR_MS,
   makeQuestions,
 } from '../gugudan/logic';
@@ -10,7 +9,7 @@ import {
 /**
  * 구구단 — 입력 화면 검사.
  *
- * 진짜 시계로 돌린다. 가짜 시계로는 카운트다운과 자동 지우기가 겹쳐 결과가 불안정하다.
+ * 진짜 시계로 돌린다. 가짜 시계로는 자동 지우기와 겹쳐 결과가 불안정하다.
  *
  * 여기서 지키는 것은 하나다. **오타를 내도 그 문제를 계속 풀 수 있어야 한다.**
  * 예전에는 틀린 숫자가 그대로 남아 입력칸이 꽉 찼고, 그러면 정답을 칠 자리가 없어
@@ -33,7 +32,6 @@ const questionOnScreen = () => String(screen.getByTestId('question').props.child
 
 async function startGame() {
   await render(<gugudan.Component seed={SEED} timeLimitSec={20} onFinish={jest.fn()} />);
-  await wait(COUNTDOWN_MS + 400);
   return makeQuestions(SEED);
 }
 

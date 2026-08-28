@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import React from 'react'
 import { gugudan } from '../gugudan'
-import { COUNTDOWN_MS as GUGUDAN_COUNTDOWN, makeQuestions as gugudanQuestions } from '../gugudan/logic'
+import { makeQuestions as gugudanQuestions } from '../gugudan/logic'
 import { plusminus } from '../plusminus'
 import { rulercatch } from '../rulercatch'
 import {
@@ -9,10 +9,7 @@ import {
   makeWaits,
   ROUNDS as RULER_ROUNDS,
 } from '../rulercatch/logic'
-import {
-  COUNTDOWN_MS as PLUSMINUS_COUNTDOWN,
-  makeQuestions as plusminusQuestions,
-} from '../plusminus/logic'
+import { makeQuestions as plusminusQuestions } from '../plusminus/logic'
 import type { GameResult } from '../types'
 
 /**
@@ -56,9 +53,6 @@ describe('plusminus 실제 플레이', () => {
       />,
     )
 
-    // 시작 전 3·2·1이 끝나야 입력이 열린다
-    await advance(PLUSMINUS_COUNTDOWN)
-
     const questions = plusminusQuestions(SEED)
     const SOLVED = 5
     for (let i = 0; i < SOLVED; i++) {
@@ -83,7 +77,7 @@ describe('plusminus 실제 플레이', () => {
       />,
     )
 
-    await advance(PLUSMINUS_COUNTDOWN + plusminus.info.timeLimitSec * 1000)
+    await advance(plusminus.info.timeLimitSec * 1000)
 
     const result = onFinish.mock.calls[0][0] as GameResult
     expect(result.score).toBe(0)
@@ -103,8 +97,6 @@ describe('gugudan 실제 플레이', () => {
         onFinish={onFinish}
       />,
     )
-
-    await advance(GUGUDAN_COUNTDOWN)
 
     const questions = gugudanQuestions(SEED)
     const SOLVED = 5
@@ -129,7 +121,7 @@ describe('gugudan 실제 플레이', () => {
       />,
     )
 
-    await advance(GUGUDAN_COUNTDOWN + gugudan.info.timeLimitSec * 1000)
+    await advance(gugudan.info.timeLimitSec * 1000)
 
     const result = onFinish.mock.calls[0][0] as GameResult
     expect(result.score).toBe(0)

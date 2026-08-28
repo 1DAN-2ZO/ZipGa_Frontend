@@ -4,7 +4,6 @@ import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types';
 import { COLORS } from '../../theme';
 import {
-  COUNTDOWN_MS,
   Question,
   TARGET_CORRECT,
   WRONG_CLEAR_MS,
@@ -20,8 +19,8 @@ import {
  *   [큰 숫자]         맞힌 문제 수
  *   ▓▓▓▓░░░          남은 시간
  *   ┌──────────┐
- *   │  7 × 8   │     문제 칸. 카운트다운 동안엔 3·2·1 이 여기 뜬다
- *   └──────────┘     → 1번 문제를 미리 풀 수 없다
+ *   │  7 × 8   │     문제 칸
+ *   └──────────┘
  *   ┌──────────┐
  *   │    56    │     입력창. 정답이 되는 순간 자동으로 다음 문제
  *   └──────────┘
@@ -36,7 +35,7 @@ import {
 const C = {
   sky: '#18A0FF',
   ink: '#0B3FA8',
-  card: '#DCEEFF', cardDim: '#96CFFA',
+  card: '#DCEEFF',
   white: COLORS.surface,
   good: COLORS.good, goodBg: '#D7F8E3',
   bad: COLORS.bad, badBg: '#FFE2DE',
@@ -70,8 +69,7 @@ function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const limitMs = timeLimitSec * 1000;
   const questions = useMemo<Question[]>(() => makeQuestions(seed), [seed]);
 
-  const [phase, setPhase] = useState<'count' | 'play' | 'over'>('count');
-  const [countText, setCountText] = useState(String(Math.round(COUNTDOWN_MS / 1000)));
+  const [phase, setPhase] = useState<'play' | 'over'>('play');
   const [qIdx, setQIdx] = useState(0);
   const [input, setInput] = useState('');
   const [correct, setCorrect] = useState(0);
@@ -163,28 +161,13 @@ function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
     wrongTimerRef.current = null;
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
     setCorrect(0); setQIdx(0); setInput(''); setLeft(limitMs);
-    setPhase('count');
-
-    const steps = Math.round(COUNTDOWN_MS / 1000);
-    setCountText(String(steps));
-    for (let s = 1; s <= steps; s++) {
-      later(() => {
-        if (finishedRef.current) return;
-        const rest = steps - s;
-        setCountText(rest > 0 ? String(rest) : '시작!');
-      }, s * 1000);
-    }
-
-    later(() => {
-      if (finishedRef.current) return;
-      setPhase('play');
-      startedAtRef.current = Date.now();
-      inputRef.current?.focus();
-      tickRef.current = setInterval(() => {
-        setLeft(Math.max(0, limitMs - (Date.now() - startedAtRef.current)));
-      }, 100);
-      later(finish, limitMs);
-    }, COUNTDOWN_MS);
+    setPhase('play');
+    startedAtRef.current = Date.now();
+    inputRef.current?.focus();
+    tickRef.current = setInterval(() => {
+      setLeft(Math.max(0, limitMs - (Date.now() - startedAtRef.current)));
+    }, 100);
+    later(finish, limitMs);
 
     return () => {
       finishedRef.current = true;
@@ -205,7 +188,7 @@ function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
       <View style={s.head}>
         <Outlined text={String(correct)} size={88} />
         <View style={s.subWrap}>
-          <Outlined text={phase === 'count' ? '준비!' : '빨리 푸세요!'} size={19} />
+          <Outlined text="빨리 푸세요!" size={19} />
         </View>
       </View>
 
@@ -214,16 +197,9 @@ function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
       </View>
 
       <View style={s.body}>
-        {/* 문제 칸 — 카운트다운 동안엔 여기가 숫자로 채워져 문제가 안 보인다 */}
-        <View style={[s.q, phase === 'count' && s.qCount]}>
-          <Text
-            testID="question"
-            style={[
-              s.qText,
-              phase === 'count' && (countText === '시작!' ? s.qCountGo : s.qCountNum),
-            ]}
-          >
-            {phase === 'count' ? countText : `${q.a} × ${q.b}`}
+        <View style={s.q}>
+          <Text testID="question" style={s.qText}>
+            {`${q.a} × ${q.b}`}
           </Text>
         </View>
 
@@ -245,9 +221,7 @@ function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
           accessibilityLabel="정답 입력"
         />
 
-        <Text style={s.hint}>
-          {phase === 'count' ? '곧 시작합니다' : '정답을 입력하면 바로 넘어갑니다'}
-        </Text>
+        <Text style={s.hint}>정답을 입력하면 바로 넘어갑니다</Text>
       </View>
     </View>
   );
@@ -273,10 +247,7 @@ const s = StyleSheet.create({
     borderRadius: 24, backgroundColor: C.card, borderWidth: 4, borderColor: C.sky,
     alignItems: 'center', justifyContent: 'center',
   },
-  qCount: { backgroundColor: C.cardDim },
   qText: { fontSize: 52, fontWeight: '900', color: C.ink, textAlign: 'center' },
-  qCountNum: { fontSize: 76 },
-  qCountGo: { fontSize: 46 },
 
   input: {
     width: '100%', maxWidth: 340, paddingVertical: 18, borderRadius: 22,
