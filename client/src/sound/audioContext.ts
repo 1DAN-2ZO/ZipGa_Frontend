@@ -31,3 +31,17 @@ export function getAudioContext(): AudioContext | null {
     return null
   }
 }
+
+/**
+ * 오디오를 재운다.
+ *
+ * 앱이 뒤로 물러났을 때 부른다. 브라우저는 탭이 가려져도 소리를 계속 내주기
+ * 때문에, 홈 키를 눌러 나가도 배경음이 그대로 흘러나온다. 재우면 이미 예약된
+ * 소리까지 함께 멎는다.
+ *
+ * 깨우는 것은 따로 부를 필요가 없다 — getAudioContext가 매번 확인해서
+ * 재워져 있으면 깨운다. 다음 소리가 알아서 살린다.
+ */
+export function suspendAudio(): void {
+  if (ctx && ctx.state === 'running') void ctx.suspend()
+}
