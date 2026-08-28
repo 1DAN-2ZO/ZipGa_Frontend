@@ -59,10 +59,32 @@ describe('notesForBar', () => {
     expect(notesForBar(PROGRESSION_BARS * 3 + 2)).toEqual(notesForBar(2))
   })
 
-  it('네 마디의 바탕음이 서로 다르다', () => {
-    // 겹치면 화음이 바뀐 게 안 들려서 같은 마디를 두 번 듣는 것처럼 된다.
+  it('이웃한 마디의 바탕음이 다르다', () => {
+    // 같으면 화음이 바뀐 게 안 들려서 같은 마디를 두 번 듣는 것처럼 된다.
+    // 진행 전체가 다 달라야 하는 건 아니고, 붙어 있는 것만 달라지면 된다
+    // (되감기는 지점 — 마지막 마디와 첫 마디 — 도 이웃이다).
     const roots = [0, 1, 2, 3].map((b) => notesForBar(b)[0].freq)
-    expect(new Set(roots).size).toBe(PROGRESSION_BARS)
+    for (let i = 0; i < PROGRESSION_BARS; i++) {
+      expect(roots[i]).not.toBe(roots[(i + 1) % PROGRESSION_BARS])
+    }
+  })
+
+  it('단조 화음을 쓰지 않는다', () => {
+    // 장조로 풀리더라도 단조가 섞이면 그 색으로 물들어 처량하게 들린다.
+    // 근음에서 셋째 음까지가 4반음이면 장3도, 3반음이면 단3도다.
+    for (let bar = 0; bar < PROGRESSION_BARS; bar++) {
+      const [, root, third] = notesForBar(bar)
+      const semitones = Math.round(12 * Math.log2(third.freq / root.freq))
+      expect(semitones).toBe(4)
+    }
+  })
+
+  it('한 옥타브를 타고 올라갔다 내려온다', () => {
+    // 제자리에서 흔들리기만 하면 바쁘기만 하고 들뜨지 않는다.
+    const [, ...run] = notesForBar(0)
+    const top = Math.max(...run.map((n) => n.freq))
+    const bottom = Math.min(...run.map((n) => n.freq))
+    expect(Math.round(12 * Math.log2(top / bottom))).toBe(12)
   })
 
   it('중간 마디부터 시작해도 계산된다', () => {
@@ -76,7 +98,7 @@ describe('notesForBar', () => {
     for (let bar = 0; bar < PROGRESSION_BARS; bar++) {
       for (const note of notesForBar(bar)) {
         expect(note.freq).toBeGreaterThan(200)
-        expect(note.freq).toBeLessThan(1000)
+        expect(note.freq).toBeLessThan(1200)
       }
     }
   })
