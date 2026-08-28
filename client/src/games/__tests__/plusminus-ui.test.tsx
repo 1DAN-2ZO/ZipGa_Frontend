@@ -103,20 +103,39 @@ describe('더하기 빼기 — 키보드가 올라왔을 때', () => {
     return StyleSheet.flatten(body.props.style);
   };
 
-  it('좁아지면 내용을 위에서부터 쌓는다 — 가운데 정렬은 위로 넘친다', async () => {
+  it('가운데 정렬을 쓰지 않는다 — 넘칠 때 위로 밀어내는 원인이었다', async () => {
     await startGame();
 
     await layout(430);
+    expect(bodyStyle().justifyContent).toBe('flex-start');
 
+    // 자리가 넉넉해도 마찬가지다. 가운데로 모으는 일은 여백 뷰가 맡는다.
+    await layout(844);
     expect(bodyStyle().justifyContent).toBe('flex-start');
   });
 
-  it('온전한 높이에서는 가운데 정렬 그대로다', async () => {
+  it('내용 위아래에 줄어드는 여백을 둬 자리가 남으면 가운데로 모은다', async () => {
     await startGame();
 
     await layout(844);
 
-    expect(bodyStyle().justifyContent).toBe('center');
+    // 문제 칸 앞뒤로 flex:1 여백이 하나씩. 자리가 모자라면 0까지 줄어든다.
+    const card = screen.getByTestId('question').parent;
+    const body = card?.parent;
+    const spacers = (body?.children ?? []).filter(
+      (child) =>
+        typeof child !== 'string' &&
+        StyleSheet.flatten(child.props.style)?.flex === 1,
+    );
+    expect(spacers).toHaveLength(2);
+  });
+
+  it('여백이 0이 돼도 시간 막대에 딱 붙지 않는다', async () => {
+    await startGame();
+
+    await layout(430);
+
+    expect(bodyStyle().paddingTop).toBeGreaterThan(0);
   });
 
   it('좁아지면 점수와 문제 글자를 줄여 자리를 만든다', async () => {

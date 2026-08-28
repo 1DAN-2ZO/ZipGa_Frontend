@@ -137,22 +137,22 @@ describe('makeCats', () => {
 
 describe('normalize — 통과 조건', () => {
   // 통과선은 games/types.ts의 PENALTY_THRESHOLD(40)다.
-  // 두 관문을 다 넘어야 여기에 닿는다: 최소 20개 정답 + 정확도 60% 이상.
+  // 두 관문을 다 넘어야 여기에 닿는다: 최소 30개 정답 + 정확도 70% 이상.
 
-  it('20개를 맞히고 정확도 60%면 딱 통과선이다', () => {
-    // 20 맞고 13 틀리면 20/33 = 60.6%
-    expect(normalize(MIN_CORRECT, 13)).toBeGreaterThanOrEqual(PENALTY_THRESHOLD)
+  it('30개를 맞히고 정확도 70%면 딱 통과선이다', () => {
+    // 30 맞고 12 틀리면 30/42 = 71.4%
+    expect(normalize(MIN_CORRECT, 12)).toBeGreaterThanOrEqual(PENALTY_THRESHOLD)
   })
 
-  it('19개까지는 아무리 정확해도 통과선을 못 넘는다', () => {
+  it('29개까지는 아무리 정확해도 통과선을 못 넘는다', () => {
     // 하나도 안 틀려 정확도 100%여도 개수가 모자라면 안 된다.
     expect(normalize(MIN_CORRECT - 1, 0)).toBeLessThan(PENALTY_THRESHOLD)
   })
 
-  it('개수를 채워도 정확도가 60% 미만이면 통과선을 못 넘는다', () => {
-    // 30 맞고 30 틀리면 50% — 아무 쪽이나 빠르게 누른 경우다.
-    expect(accuracyOf(30, 30)).toBeLessThan(MIN_ACCURACY)
-    expect(normalize(30, 30)).toBeLessThan(PENALTY_THRESHOLD)
+  it('개수를 채워도 정확도가 기준 미만이면 통과선을 못 넘는다', () => {
+    // 개수는 채웠지만 그만큼 틀렸다 — 아무 쪽이나 빠르게 누른 경우다.
+    expect(accuracyOf(MIN_CORRECT, MIN_CORRECT)).toBeLessThan(MIN_ACCURACY)
+    expect(normalize(MIN_CORRECT, MIN_CORRECT)).toBeLessThan(PENALTY_THRESHOLD)
   })
 
   it('두 조건을 다 못 넘기면 더 부족한 쪽을 따른다', () => {
@@ -173,11 +173,18 @@ describe('normalize — 통과 조건', () => {
   })
 
   it('통과선과 100 사이에서는 개수만큼 올라간다', () => {
-    const low = normalize(MIN_CORRECT + 4, 0)
-    const high = normalize(MIN_CORRECT + 10, 0)
+    // 두 상수 사이에서 잡는다 — 문턱을 조정해도 이 검사가 저절로 따라온다
+    const low = normalize(MIN_CORRECT + 1, 0)
+    const high = normalize(PERFECT_COUNT - 1, 0)
     expect(low).toBeGreaterThan(PENALTY_THRESHOLD)
     expect(high).toBeGreaterThan(low)
     expect(high).toBeLessThan(100)
+  })
+
+  it('통과선과 만점 사이가 계단이 되지 않는다', () => {
+    // 한 마리에 몇 점씩 뛰는지. 폭이 좁으면 한 마리 차이로 점수가 널뛴다.
+    const perCat = (100 - PENALTY_THRESHOLD) / (PERFECT_COUNT - MIN_CORRECT)
+    expect(perCat).toBeLessThanOrEqual(10)
   })
 
   it('언제나 0~100 안에 있다', () => {

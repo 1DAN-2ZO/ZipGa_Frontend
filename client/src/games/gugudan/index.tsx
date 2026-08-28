@@ -172,6 +172,10 @@ function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
       </View>
 
       <View style={[s.body, compact && s.bodyCompact]}>
+        {/* 위아래 여백이 남는 자리를 반씩 먹어 가운데로 모은다. 자리가 모자라면
+            0까지 줄어들고, 그때는 내용이 위에서부터 쌓여 아래로만 넘친다. */}
+        <View style={s.gap} />
+
         <View style={s.q}>
           <Text testID="question" style={[s.qText, compact && s.qTextCompact]}>
             {`${q.a} × ${q.b}`}
@@ -198,6 +202,8 @@ function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
         />
 
         {!compact && <Text style={s.hint}>정답을 입력하면 바로 넘어갑니다</Text>}
+
+        <View style={s.gap} />
       </View>
     </View>
   );
@@ -217,7 +223,29 @@ const s = StyleSheet.create({
   },
   barFill: { height: '100%', borderRadius: 99 },
 
-  body: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18, paddingHorizontal: 22 },
+  /**
+   * 문제 칸과 입력창이 사는 영역.
+   *
+   * justifyContent:'center'를 안 쓴다. body는 flex:1이라 자리가 모자라면 제
+   * 내용보다도 작아지는데, 그 상태의 가운데 정렬은 넘치는 만큼을 위아래로
+   * 똑같이 밀어내서 위로 삐져나온 문제 칸이 시간 막대를 덮었다.
+   *
+   * 대신 위아래에 늘었다 줄어드는 여백(gap)을 하나씩 둔다. 자리가 남으면
+   * 반씩 먹어 가운데로 모으고, 모자라면 0까지 줄어들어 내용에 자리를 내준다.
+   * 그때는 위에서부터 쌓이므로 넘쳐도 아래로만 간다.
+   *
+   * paddingTop은 그 여백이 0이 된 순간에도 시간 막대에 딱 붙지 않게 하는 몫이다.
+   */
+  body: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 18,
+    paddingHorizontal: 22,
+    paddingTop: 14,
+  },
+  /** 남는 자리를 먹는 여백. 모자라면 0까지 줄어든다 */
+  gap: { flex: 1 },
 
   /**
    * 키보드가 올라온 동안 쓰는 축소본.
@@ -232,7 +260,7 @@ const s = StyleSheet.create({
    */
   headCompact: { paddingTop: 12 },
   scoreTextCompact: { fontSize: 44 },
-  bodyCompact: { justifyContent: 'flex-start', gap: 12 },
+  bodyCompact: { gap: 12 },
   qTextCompact: { fontSize: 34 },
   inputCompact: { paddingVertical: 12, fontSize: 32 },
 
