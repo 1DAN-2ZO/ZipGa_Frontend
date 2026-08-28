@@ -62,9 +62,9 @@ export const COLORS = {
   blush: '#FFB3A7',
 
   /** 잘한 것 */
-  good: '#159F5B',
+  good: '#3A5A40',
   /** 틀린 것·남은 시간이 급한 것 */
-  bad: '#E03151',
+  bad: '#C05A46',
 } as const
 
 export type ColorName = keyof typeof COLORS

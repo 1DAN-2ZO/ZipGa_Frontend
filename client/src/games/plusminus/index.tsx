@@ -3,6 +3,7 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types';
 import { COLORS } from '../../theme';
+import { colors, fonts } from '../../theme/colors';
 import {
   MAX_ANSWER_DIGITS,
   Question,
@@ -34,37 +35,6 @@ import {
  *  - 제한시간이 끝나면 스스로 종료하고 그때까지의 점수를 반환 (0점 처리 안 함)
  *  - onFinish 는 정확히 한 번만 호출
  */
-
-const C = {
-  grape: '#7C5CFF',
-  ink: '#2B1780',
-  card: '#EFE9FF',
-  white: COLORS.surface,
-  bad: COLORS.bad, badBg: '#FFE2DE',
-};
-
-/** RN 에는 텍스트 외곽선이 없어서 같은 글자를 여러 번 겹쳐 찍는다. */
-function Outlined({ text, size, color }: { text: string; size: number; color?: string }) {
-  const OFF = Math.max(2, Math.round(size * 0.055));
-  const dirs: [number, number][] = [
-    [-OFF, 0], [OFF, 0], [0, -OFF], [0, OFF],
-    [-OFF, -OFF], [OFF, -OFF], [-OFF, OFF], [OFF, OFF],
-  ];
-  const base = { fontSize: size, fontWeight: '900' as const, textAlign: 'center' as const };
-  return (
-    <View style={{ height: size * 1.15, justifyContent: 'center' }}>
-      {dirs.map(([dx, dy], i) => (
-        <Text
-          key={i}
-          style={[base, s.stack, { color: C.ink, transform: [{ translateX: dx }, { translateY: dy }] }]}
-        >
-          {text}
-        </Text>
-      ))}
-      <Text style={[base, s.stack, { color: color ?? C.grape }]}>{text}</Text>
-    </View>
-  );
-}
 
 function PlusMinusGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const sound = useGameSound()
@@ -183,14 +153,14 @@ function PlusMinusGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const q = questions[qIdx];
   const state = phase === 'play' ? typingState(input, q.answer) : 'empty';
   const pct = (left / limitMs) * 100;
-  const barColor = left <= 5000 ? C.bad : left <= 10000 ? COLORS.accent : C.grape;
+  const barColor = left <= 5000 ? COLORS.bad : left <= 10000 ? COLORS.accent : COLORS.good;
 
   return (
     <View testID="game-root" style={s.wrap}>
       <View style={s.head}>
-        <Outlined text={String(correct)} size={88} />
+        <Text style={s.scoreText}>{correct}</Text>
         <View style={s.subWrap}>
-          <Outlined text="빨리 푸세요!" size={19} />
+          <Text style={s.subText}>빨리 푸세요!</Text>
         </View>
       </View>
 
@@ -231,10 +201,11 @@ function PlusMinusGame({ seed, timeLimitSec, onFinish }: GameProps) {
 
 const s = StyleSheet.create({
   wrap: { flex: 1, width: '100%', backgroundColor: COLORS.bg },
-  stack: { position: 'absolute', left: 0, right: 0 },
 
   head: { paddingTop: 40, paddingHorizontal: 20 },
+  scoreText: { fontFamily: fonts.heading, fontSize: 112, color: colors.primary, textAlign: 'center' },
   subWrap: { marginTop: 10 },
+  subText: { fontFamily: fonts.bold, fontSize: 19, color: COLORS.brand, textAlign: 'center' },
 
   bar: {
     height: 12, marginHorizontal: 22, marginTop: 20,
@@ -246,17 +217,17 @@ const s = StyleSheet.create({
 
   q: {
     width: '100%', maxWidth: 340, paddingVertical: 26, paddingHorizontal: 20,
-    borderRadius: 24, backgroundColor: C.card, borderWidth: 4, borderColor: C.grape,
+    borderRadius: 24, backgroundColor: COLORS.surfaceAlt, borderWidth: 4, borderColor: COLORS.brand,
     alignItems: 'center', justifyContent: 'center',
   },
-  qText: { fontSize: 48, fontWeight: '900', color: C.ink, textAlign: 'center' },
+  qText: { fontSize: 48, fontWeight: '900', color: COLORS.text, textAlign: 'center' },
 
   input: {
     width: '100%', maxWidth: 340, paddingVertical: 18, borderRadius: 22,
-    borderWidth: 4, borderColor: C.grape, backgroundColor: C.white,
-    fontSize: 42, fontWeight: '900', color: C.ink,
+    borderWidth: 4, borderColor: COLORS.brand, backgroundColor: COLORS.surface,
+    fontSize: 42, fontWeight: '900', color: COLORS.text,
   },
-  inputWrong: { backgroundColor: C.badBg, borderColor: C.bad },
+  inputWrong: { borderColor: COLORS.bad },
   inputOff: { backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.border },
 
   hint: { color: COLORS.textMuted, fontSize: 13.5, fontWeight: '700', textAlign: 'center' },

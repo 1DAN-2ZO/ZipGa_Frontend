@@ -43,12 +43,7 @@ import {
  */
 
 const C = {
-  sky: '#18A0FF',
-  ink: '#0B3FA8',
-  slot: '#96CFFA', slotOn: '#DCEEFF',
   wood: '#A9601F', woodEdge: '#7E4413', tick: '#FFF3D0',
-  white: COLORS.surface,
-  bad: COLORS.bad,
 };
 
 const BAR_H = 11;
@@ -71,12 +66,12 @@ function Outlined({ text, size, color }: { text: string; size: number; color?: s
       {dirs.map(([dx, dy], i) => (
         <Text
           key={i}
-          style={[base, st.stackText, { color: C.ink, transform: [{ translateX: dx }, { translateY: dy }] }]}
+          style={[base, st.stackText, { color: COLORS.text, transform: [{ translateX: dx }, { translateY: dy }] }]}
         >
           {text}
         </Text>
       ))}
-      <Text style={[base, st.stackText, { color: color ?? C.sky }]}>{text}</Text>
+      <Text style={[base, st.stackText, { color: color ?? COLORS.accent }]}>{text}</Text>
     </View>
   );
 }
@@ -374,7 +369,7 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
         )}
         {readout && (
           <View style={st.readout} pointerEvents="none">
-            <Outlined text={readout.text} size={24} color={readout.bad ? C.bad : C.sky} />
+            <Outlined text={readout.text} size={24} color={readout.bad ? COLORS.bad : COLORS.accent} />
           </View>
         )}
         <View style={[st.bar, st.barBot]} />
@@ -402,25 +397,25 @@ const st = StyleSheet.create({
 
   slots: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, marginTop: 30, zIndex: 8 },
   slot: {
-    flex: 1, height: 62, borderRadius: 31, backgroundColor: C.slot,
+    flex: 1, height: 62, borderRadius: 31, backgroundColor: COLORS.surfaceAlt,
     borderWidth: 3, borderColor: 'transparent',
     alignItems: 'center', justifyContent: 'center',
   },
-  slotOn: { backgroundColor: C.slotOn, borderColor: C.sky },
-  slotText: { color: C.ink, fontWeight: '800', fontSize: 16 },
-  slotX: { color: C.bad, fontWeight: '900', fontSize: 22 },
-  slotDash: { color: C.ink, opacity: 0.45, fontSize: 20, fontWeight: '800' },
+  slotOn: { backgroundColor: COLORS.surface, borderColor: COLORS.accent },
+  slotText: { color: COLORS.text, fontWeight: '800', fontSize: 16 },
+  slotX: { color: COLORS.bad, fontWeight: '900', fontSize: 22 },
+  slotDash: { color: COLORS.text, opacity: 0.45, fontSize: 20, fontWeight: '800' },
   caret: {
     position: 'absolute', top: -11, marginLeft: -9,
     width: 0, height: 0,
     borderLeftWidth: 9, borderRightWidth: 9, borderTopWidth: 11,
-    borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: C.ink,
+    borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: COLORS.text,
   },
 
   stage: { flex: 1, marginTop: 8, overflow: 'hidden', zIndex: 1 },
   bar: {
     position: 'absolute', alignSelf: 'center', width: '82%',
-    height: BAR_H, borderRadius: 99, backgroundColor: C.ink, zIndex: 4,
+    height: BAR_H, borderRadius: 99, backgroundColor: COLORS.text, zIndex: 4,
   },
   barTop: { top: 0 },
   barBot: { bottom: BAR_BOTTOM_GAP },
