@@ -241,7 +241,6 @@ const s = StyleSheet.create({
 
   q: {
     width: '100%', maxWidth: 340, paddingVertical: 26, paddingHorizontal: 20,
-    borderRadius: 24, backgroundColor: COLORS.surfaceAlt, borderWidth: 4, borderColor: COLORS.brand,
     alignItems: 'center', justifyContent: 'center',
   },
   qText: { fontSize: 48, fontWeight: '900', color: COLORS.text, textAlign: 'center' },

@@ -64,7 +64,6 @@ export function GameSandbox({ onSettings, onGoHome }: { onSettings: () => void; 
     const penalized = phase.result.normalizedScore < PENALTY_THRESHOLD
     return (
       <View style={styles.screen}>
-        <Watermark />
         <ScreenHeader title="결과" onSettings={onSettings} />
         <View style={styles.center}>
           <Text style={styles.label}>잡은 수</Text>
