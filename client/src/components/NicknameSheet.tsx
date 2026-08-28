@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Modal, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { colors, fonts, radius } from '../theme/colors'
 import { PillButton } from './PillButton'
 
@@ -16,8 +16,9 @@ export function NicknameSheet({ visible, initialNickname, onConfirm, onCancel }:
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+      <Pressable style={styles.backdrop} onPress={onCancel}>
+        {/* 여백(backdrop) 클릭 시 닫히게 하되, 시트 안쪽 클릭은 버블링을 막아 안 닫히게 한다 */}
+        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <Text style={styles.title}>닉네임을 알려주세요</Text>
           <TextInput
             testID="nickname-input"
@@ -34,8 +35,8 @@ export function NicknameSheet({ visible, initialNickname, onConfirm, onCancel }:
             onPress={() => onConfirm(nickname.trim())}
             disabled={nickname.trim().length === 0}
           />
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   )
 }

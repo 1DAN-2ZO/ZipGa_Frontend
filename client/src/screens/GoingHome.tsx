@@ -36,7 +36,7 @@ export function GoingHome({ reason, launch, onSettings, onOpenStore, onStay, onG
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title={reason === 'penalty' ? '집 가' : '집에 갈래'} onSettings={onSettings} />
+      <ScreenHeader title="ZipGa" onSettings={onSettings} />
 
       <View style={styles.center}>
         <MaterialIcons name="local-taxi" size={72} color={colors.primary} />

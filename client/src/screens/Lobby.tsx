@@ -1,6 +1,7 @@
 import { FlatList, StyleSheet, Text, View } from 'react-native'
 import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Watermark } from '../components/Watermark'
 import { colors, fonts, radius } from '../theme/colors'
 import { rankDelta } from './lobbyRank'
 
@@ -66,6 +67,7 @@ export function Lobby({
 }: LobbyProps) {
   return (
     <View style={styles.screen}>
+      <Watermark />
       <ScreenHeader
         title="ZipGa"
         leadingIcon="qr-code-2"

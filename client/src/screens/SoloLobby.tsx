@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Watermark } from '../components/Watermark'
 import { ROUNDS_PER_SESSION } from '../games/types'
 import { colors, fonts, radius } from '../theme/colors'
 
@@ -21,6 +22,7 @@ export interface SoloLobbyProps {
 export function SoloLobby({ nickname, onStart, onBack, onSettings }: SoloLobbyProps) {
   return (
     <View style={styles.screen}>
+      <Watermark />
       <ScreenHeader title="혼자하기" onBack={onBack} onSettings={onSettings} />
 
       <View style={styles.center}>

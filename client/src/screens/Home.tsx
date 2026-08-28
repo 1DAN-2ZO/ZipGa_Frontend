@@ -1,6 +1,7 @@
 import { Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native'
 import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Watermark } from '../components/Watermark'
 import { showAlert } from '../lib/alerts'
 import { colors, fonts } from '../theme/colors'
 
@@ -56,6 +57,7 @@ export function Home({
 }: HomeProps) {
   return (
     <View style={styles.screen}>
+      <Watermark />
       <ScreenHeader title="ZipGa" onSettings={onSettings} />
 
       {nickname && (

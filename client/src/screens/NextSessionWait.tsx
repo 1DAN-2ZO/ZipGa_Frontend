@@ -1,6 +1,7 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Watermark } from '../components/Watermark'
 import { colors, fonts } from '../theme/colors'
 
 export interface NextSessionWaitProps {
@@ -19,6 +20,7 @@ export interface NextSessionWaitProps {
 export function NextSessionWait({ onSettings, onLeaveRoom }: NextSessionWaitProps) {
   return (
     <View style={styles.screen}>
+      <Watermark />
       <ScreenHeader title="ZipGa" onSettings={onSettings} />
 
       <View style={styles.center}>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
+import { Watermark } from '../components/Watermark'
 import { useAppSound } from '../sound'
 import { colors, fonts } from '../theme/colors'
 
@@ -65,6 +66,7 @@ export function Countdown({
 
   return (
     <View style={styles.screen}>
+      <Watermark />
       <Text style={styles.emoji}>{gameEmoji}</Text>
       <Text style={styles.gameName}>{gameName}</Text>
       <Text style={styles.desc}>{gameDesc}</Text>

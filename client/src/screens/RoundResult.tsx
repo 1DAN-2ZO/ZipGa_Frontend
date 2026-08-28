@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
+import { Watermark } from '../components/Watermark'
 import type { RoundScoreRow } from '../room/scores'
 import { listRoundScores, subscribeToRoundScores } from '../room/scores'
 import { colors, fonts } from '../theme/colors'
@@ -40,6 +41,7 @@ export function RoundResult({ sessionId, roundIndex, myPlayerId, gameName, onDon
 
   return (
     <View style={styles.screen}>
+      <Watermark />
       <Text style={styles.heading}>{gameName}</Text>
       <Text style={styles.subheading}>이번 판 결과</Text>
 
