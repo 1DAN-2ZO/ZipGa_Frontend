@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types';
+import { useCompactLayout } from '../useCompactLayout';
 import { COLORS } from '../../theme';
 import { colors, fonts } from '../../theme/colors';
 import {
@@ -35,6 +36,8 @@ import {
 
 function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const sound = useGameSound()
+  // 키보드가 올라오면 자리가 절반으로 준다. 그때 접을 것들을 이 값이 정한다.
+  const { compact, onLayout } = useCompactLayout()
   const limitMs = timeLimitSec * 1000;
   const questions = useMemo<Question[]>(() => makeQuestions(seed), [seed]);
 
@@ -153,21 +156,24 @@ function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const barColor = left <= 5000 ? COLORS.bad : left <= 10000 ? COLORS.accent : COLORS.good;
 
   return (
-    <View testID="game-root" style={s.wrap}>
-      <View style={s.head}>
-        <Text style={s.scoreText}>{correct}</Text>
-        <View style={s.subWrap}>
-          <Text style={s.subText}>빨리 푸세요!</Text>
-        </View>
+    <View testID="game-root" style={s.wrap} onLayout={onLayout}>
+      <View style={[s.head, compact && s.headCompact]}>
+        <Text style={[s.scoreText, compact && s.scoreTextCompact]}>{correct}</Text>
+        {/* 자리가 급하면 응원 문구부터 접는다 */}
+        {!compact && (
+          <View style={s.subWrap}>
+            <Text style={s.subText}>빨리 푸세요!</Text>
+          </View>
+        )}
       </View>
 
       <View style={s.bar}>
         <View style={[s.barFill, { width: `${pct}%`, backgroundColor: barColor }]} />
       </View>
 
-      <View style={s.body}>
+      <View style={[s.body, compact && s.bodyCompact]}>
         <View style={s.q}>
-          <Text testID="question" style={s.qText}>
+          <Text testID="question" style={[s.qText, compact && s.qTextCompact]}>
             {`${q.a} × ${q.b}`}
           </Text>
         </View>
@@ -177,6 +183,7 @@ function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
           ref={inputRef}
           style={[
             s.input,
+            compact && s.inputCompact,
             state === 'wrong' && s.inputWrong,
             phase !== 'play' && s.inputOff,
           ]}
@@ -190,7 +197,7 @@ function GugudanGame({ seed, timeLimitSec, onFinish }: GameProps) {
           accessibilityLabel="정답 입력"
         />
 
-        <Text style={s.hint}>정답을 입력하면 바로 넘어갑니다</Text>
+        {!compact && <Text style={s.hint}>정답을 입력하면 바로 넘어갑니다</Text>}
       </View>
     </View>
   );
@@ -211,6 +218,23 @@ const s = StyleSheet.create({
   barFill: { height: '100%', borderRadius: 99 },
 
   body: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18, paddingHorizontal: 22 },
+
+  /**
+   * 키보드가 올라온 동안 쓰는 축소본.
+   *
+   * bodyCompact의 flex-start가 핵심이다. body는 flex:1이라 자리가 모자라면
+   * 제 내용보다도 작아지는데, 그 상태에서 가운데 정렬이면 넘치는 만큼이
+   * 위아래로 똑같이 삐져나온다 — 위로 삐져나온 문제 칸이 시간 막대를
+   * 덮어버렸다(제보된 겹침). 위에서부터 쌓으면 넘쳐도 아래로만 간다.
+   *
+   * 그 위에 머리를 접어 자리를 만든다. 점수 112는 키보드가 없을 때나
+   * 되는 크기다.
+   */
+  headCompact: { paddingTop: 12 },
+  scoreTextCompact: { fontSize: 44 },
+  bodyCompact: { justifyContent: 'flex-start', gap: 12 },
+  qTextCompact: { fontSize: 34 },
+  inputCompact: { paddingVertical: 12, fontSize: 32 },
 
   q: {
     width: '100%', maxWidth: 340, paddingVertical: 26, paddingHorizontal: 20,

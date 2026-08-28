@@ -1,5 +1,6 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { plusminus } from '../plusminus';
 import {
   WRONG_CLEAR_MS,
@@ -72,4 +73,77 @@ describe('더하기 빼기 입력', () => {
     await wait(WRONG_CLEAR_MS + 250);            // 지우기 시간보다 오래 기다려도
     expect(typed()).toBe(answer[0]);             // 그대로 남아 있어야 한다
   }, 30000);
+});
+
+/**
+ * 키보드가 올라오면 문제 칸이 시간 막대를 덮던 문제.
+ *
+ * body가 flex:1이라 자리가 모자라면 제 내용보다도 작아지는데, 그 상태에서
+ * 가운데 정렬이면 넘치는 만큼이 위아래로 똑같이 삐져나온다 — 위로 삐져나온
+ * 문제 칸이 시간 막대를 78px 덮었다(실제 폰 제보, 웹 390x430에서 재현).
+ *
+ * 여기서 지키는 것은 하나다. **자리가 좁아져도 위로는 넘치지 않는다.**
+ */
+describe('더하기 빼기 — 키보드가 올라왔을 때', () => {
+  const layout = async (height: number) => {
+    fireEvent(screen.getByTestId('game-root'), 'layout', {
+      nativeEvent: { layout: { width: 390, height } },
+      persist: () => {},
+    });
+    await wait(20);
+  };
+
+  const styleOf = (testID: string) => StyleSheet.flatten(screen.getByTestId(testID).props.style);
+
+  /** 문제 칸을 담고 있는 영역(body). 넘칠 때 어느 쪽으로 밀리는지가 여기서 정해진다. */
+  const bodyStyle = () => {
+    const card = screen.getByTestId('question').parent;
+    const body = card?.parent;
+    if (!body) throw new Error('문제 칸을 담은 영역을 찾지 못했습니다.');
+    return StyleSheet.flatten(body.props.style);
+  };
+
+  it('좁아지면 내용을 위에서부터 쌓는다 — 가운데 정렬은 위로 넘친다', async () => {
+    await startGame();
+
+    await layout(430);
+
+    expect(bodyStyle().justifyContent).toBe('flex-start');
+  });
+
+  it('온전한 높이에서는 가운데 정렬 그대로다', async () => {
+    await startGame();
+
+    await layout(844);
+
+    expect(bodyStyle().justifyContent).toBe('center');
+  });
+
+  it('좁아지면 점수와 문제 글자를 줄여 자리를 만든다', async () => {
+    await startGame();
+
+    await layout(844);
+    const roomy = styleOf('question').fontSize;
+    await layout(430);
+    const tight = styleOf('question').fontSize;
+
+    expect(tight).toBeLessThan(roomy);
+  });
+
+  it('좁아져도 문제와 입력칸은 그대로 남는다', async () => {
+    const questions = await startGame();
+
+    await layout(430);
+
+    expect(screen.getByTestId('question')).toHaveTextContent(questionText(questions[0]));
+    expect(screen.getByTestId('answer')).toBeTruthy();
+  });
+
+  it('응원 문구는 접는다', async () => {
+    await startGame();
+
+    await layout(430);
+
+    expect(screen.queryByText('빨리 푸세요!')).toBeNull();
+  });
 });
