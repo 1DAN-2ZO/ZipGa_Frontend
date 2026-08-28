@@ -5,7 +5,7 @@ import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types'
 import { Backdrop } from './Backdrop'
 import { Cat } from './Cat'
-import { Queue } from './Queue'
+import { Queue, type FlyingCatState } from './Queue'
 import {
   CAT_QUEUE_LENGTH,
   COLOR_LABELS,
@@ -62,6 +62,9 @@ function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const [netScore, setNetScore] = useState(0)
   const [isOver, setIsOver] = useState(false)
   const [wrongSide, setWrongSide] = useState<Side | null>(null)
+  /** 방금 보낸 고양이. 줄 맨 앞자리에서 누른 쪽으로 날아가는 연출 전용이다. */
+  const [flying, setFlying] = useState<FlyingCatState | null>(null)
+  const flyIdRef = useRef(0)
 
   // 시계는 하나뿐이다. 틱을 세면 앱이 백그라운드로 갔을 때 시간이 늘어나 공정성이 깨진다.
   const deadlineRef = useRef(Date.now() + timeLimitSec * 1000)
@@ -124,6 +127,11 @@ function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const send = (side: Side) => {
     if (isOver || finishedRef.current) return
     if (Date.now() < lockedUntilRef.current) return
+
+    // 맞든 틀리든 이 고양이는 줄에서 빠진다. 누른 쪽으로 날려서 내가 어디로
+    // 보냈는지를 눈으로 남긴다 — 틀렸을 때 엉뚱한 쪽으로 날아가는 게 곧 피드백이다.
+    flyIdRef.current += 1
+    setFlying({ color, side, id: flyIdRef.current })
 
     if (side !== sideOf(lineup, color)) {
       // 틀렸다. 점수를 깎고 이 고양이는 넘긴다. 잠금은 난타를 막는 별개 장치다.
@@ -198,7 +206,11 @@ function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
         </View>
 
         <View style={styles.stage}>
-          <Queue colors={visible} />
+          <Queue
+            colors={visible}
+            flying={flying}
+            onFlyDone={(id) => setFlying((f) => (f && f.id === id ? null : f))}
+          />
           <Text testID="cat-color" style={styles.catLabel}>
             {COLOR_LABELS[color]}
           </Text>

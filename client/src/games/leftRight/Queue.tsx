@@ -1,7 +1,8 @@
 import React from 'react'
 import { StyleSheet, View } from 'react-native'
 import { Cat } from './Cat'
-import { QUEUE_VISIBLE, type CatColor } from './logic'
+import { FlyingCat } from './FlyingCat'
+import { QUEUE_VISIBLE, type CatColor, type Side } from './logic'
 
 /** 맨 앞 고양이 크기(px). 뒤로 갈수록 SHRINK 비율로 줄어든다. */
 const FRONT_SIZE = 132
@@ -19,9 +20,20 @@ export function sizeAt(depth: number): number {
   return FRONT_SIZE * SHRINK ** depth
 }
 
+/** 방금 보낸 고양이. id는 연속으로 보낼 때 연출을 새로 시작시키는 값이다. */
+export interface FlyingCatState {
+  color: CatColor
+  side: Side
+  id: number
+}
+
 interface QueueProps {
   /** 앞에서부터의 고양이 색. QUEUE_VISIBLE개를 받는다. */
   colors: readonly CatColor[]
+  /** 방금 보낸 고양이가 있으면 맨 앞자리에서 그 방향으로 날아간다. */
+  flying?: FlyingCatState | null
+  /** 연출이 끝났음을 알린다. 인자는 끝난 고양이의 id다. */
+  onFlyDone?: (id: number) => void
 }
 
 /**
@@ -33,7 +45,7 @@ interface QueueProps {
  *
  * 겹치는 순서가 중요하다. 뒤쪽부터 그려야 앞 고양이가 위로 올라온다.
  */
-export function Queue({ colors }: QueueProps) {
+export function Queue({ colors, flying, onFlyDone }: QueueProps) {
   const visible = colors.slice(0, QUEUE_VISIBLE)
 
   // 줄 전체가 차지하는 높이. 맨 앞 고양이를 바닥에 붙이려고 미리 잰다.
@@ -59,11 +71,22 @@ export function Queue({ colors }: QueueProps) {
           <Cat color={color} size={size} front={depth === 0} testID={`queue-fur-${depth}`} />
         </View>
       ))}
+
+      {/* 줄 위에 겹쳐 날아간다. 맨 앞 고양이 다음에 그려야 그 위로 올라온다. */}
+      {flying && (
+        <FlyingCat
+          key={flying.id}
+          color={flying.color}
+          side={flying.side}
+          size={sizeAt(0)}
+          onDone={() => onFlyDone?.(flying.id)}
+        />
+      )}
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  queue: { width: '100%', justifyContent: 'flex-end' },
+  queue: { width: '100%', justifyContent: 'flex-end', overflow: 'visible' },
   slot: { position: 'absolute', left: '50%' },
 })

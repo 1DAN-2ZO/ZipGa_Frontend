@@ -3,6 +3,7 @@ import React from 'react'
 import { processColor, StyleSheet } from 'react-native'
 import { leftRight } from '../leftRight'
 import { FUR } from '../leftRight/Cat'
+import { FLY_MS, flyOffsetX, flyRotation } from '../leftRight/FlyingCat'
 import {
   CAT_QUEUE_LENGTH,
   COLOR_LABELS,
@@ -325,5 +326,109 @@ describe('leftRight 화면', () => {
     for (const node of shown) {
       expect(node).toHaveTextContent(COLOR_LABELS[first])
     }
+  })
+})
+
+/**
+ * 보낸 고양이가 누른 쪽으로 날아가는 연출.
+ *
+ * 판정·줄 넘김과는 별개로 도는 장식이다. 여기서 지키는 건 두 가지다 —
+ * 틀렸을 때도 누른 쪽으로 날아가야 하고(어디로 보냈는지가 곧 피드백이다),
+ * 연출이 도는 동안에도 다음 고양이를 바로 보낼 수 있어야 한다.
+ */
+describe('보낸 고양이 날리기', () => {
+  const flyingFur = () => screen.queryByTestId('flying-cat-fur')
+
+  it('보내기 전에는 날아가는 고양이가 없다', async () => {
+    await renderGame()
+
+    expect(flyingFur()).toBeNull()
+  })
+
+  it('보낸 고양이가 방금 화면에 있던 그 색으로 날아간다', async () => {
+    const seed = 7
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, makeLineup(seed))
+    await renderGame(seed)
+
+    await send(sideOf(makeLineup(seed), first))
+
+    expect(furOf('flying-cat-fur')).toEqual(asFill(FUR[first]))
+  })
+
+  it('틀리게 보내도 누른 쪽으로 날아간다', async () => {
+    const seed = 7
+    const lineup = makeLineup(seed)
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, lineup)
+    const wrong: Side = sideOf(lineup, first) === 'left' ? 'right' : 'left'
+    await renderGame(seed)
+
+    await send(wrong)
+
+    // 색은 보낸 그 고양이 그대로다 — 어느 쪽으로 갔는지는 화면이 말해준다
+    expect(furOf('flying-cat-fur')).toEqual(asFill(FUR[first]))
+  })
+
+  it('연출이 끝나면 사라진다', async () => {
+    const seed = 7
+    const lineup = makeLineup(seed)
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, lineup)
+    await renderGame(seed)
+
+    await send(sideOf(lineup, first))
+    await advanceBy(FLY_MS + 100)
+
+    expect(flyingFur()).toBeNull()
+  })
+
+  it('연출이 도는 중에도 다음 고양이를 보낼 수 있다', async () => {
+    const seed = 7
+    const lineup = makeLineup(seed)
+    const cats = makeCats(seed, CAT_QUEUE_LENGTH, lineup)
+    await renderGame(seed)
+
+    await send(sideOf(lineup, cats[0]))
+    // 첫 연출이 아직 끝나기 전에 바로 다음 마리를 보낸다
+    await advanceBy(FLY_MS / 2)
+    await send(sideOf(lineup, cats[1]))
+
+    expect(score()).toBe(2)
+    expect(furOf('flying-cat-fur')).toEqual(asFill(FUR[cats[1]]))
+  })
+
+  it('왼쪽을 누르면 왼쪽으로, 오른쪽을 누르면 오른쪽으로 간다', () => {
+    expect(flyOffsetX('left', 132)).toBeLessThan(0)
+    expect(flyOffsetX('right', 132)).toBeGreaterThan(0)
+    expect(flyRotation('left')).toBe('-35deg')
+    expect(flyRotation('right')).toBe('35deg')
+  })
+
+  it('고양이가 클수록 멀리 날아간다 — 화면 폭이 달라져도 비율이 같다', () => {
+    expect(Math.abs(flyOffsetX('right', 264))).toBe(Math.abs(flyOffsetX('right', 132)) * 2)
+  })
+
+  it('날아가는 고양이에 움직임이 걸려 있다', async () => {
+    const seed = 7
+    const lineup = makeLineup(seed)
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, lineup)
+    await renderGame(seed)
+
+    await send(sideOf(lineup, first))
+
+    // 자리만 옮겨 놓고 끝내면 "날아간다"가 아니다 — 이동·회전·축소·페이드가 다 걸려야 한다
+    const style = StyleSheet.flatten(screen.getByTestId('flying-cat').props.style)
+    const moves = style.transform.map((t: object) => Object.keys(t)[0])
+    expect(moves).toEqual(['translateX', 'translateY', 'rotate', 'scale'])
+    expect(style.opacity).toBeDefined()
+  })
+
+  it('줄에 그려지는 고양이 수는 그대로다', async () => {
+    const seed = 7
+    const lineup = makeLineup(seed)
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, lineup)
+    await renderGame(seed)
+
+    await send(sideOf(lineup, first))
+
+    expect(screen.getAllByTestId(/^queue-fur-/)).toHaveLength(QUEUE_VISIBLE)
   })
 })
