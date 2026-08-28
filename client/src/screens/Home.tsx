@@ -10,6 +10,8 @@ export interface HomeProps {
   hasStoredRoom?: boolean
   onCreateRoom: () => void
   onJoinRoom: () => void
+  /** 방 없이 혼자 3판. 로그인도 닉네임도 필요 없다. */
+  onSoloPlay: () => void
   onRejoin: () => void
   onSettings: () => void
 }
@@ -19,6 +21,7 @@ export function Home({
   hasStoredRoom,
   onCreateRoom,
   onJoinRoom,
+  onSoloPlay,
   onRejoin,
   onSettings,
 }: HomeProps) {
@@ -40,6 +43,13 @@ export function Home({
         )}
         <PillButton label="방 만들기" icon="add" onPress={onCreateRoom} />
         <PillButton label="방 참여하기" variant="secondary" icon="login" onPress={onJoinRoom} />
+        <PillButton
+          testID="solo-play"
+          label="혼자하기"
+          variant="secondary"
+          icon="person"
+          onPress={onSoloPlay}
+        />
       </View>
     </View>
   )
