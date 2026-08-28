@@ -1,4 +1,5 @@
 import { createRng } from '../prng'
+import { PENALTY_THRESHOLD } from '../types'
 import type { GameResult } from '../types'
 
 /**
@@ -7,16 +8,20 @@ import type { GameResult } from '../types'
  * 화면에는 절대 노출하지 않는다 — 플레이어에게 보이는 건 "지금 몇 개 맞췄나"뿐이고,
  * 이 값은 벌칙 판정(세션 평균 < PENALTY_THRESHOLD)을 위해 앱이 내부적으로 쓰는 환산 기준이다.
  *
- * 5에서 10으로 올렸다. 20초에 두 개만 쳐도 통과선(40)을 넘어서 너무 헐거웠다.
- * 한 개당 10점이라 4개면 통과선에 닿고 10개면 만점이다.
+ * 10에서 6으로 내렸다. 20초에 열 개는 사실상 아무도 못 채워서 만점이
+ * 죽은 값이었다.
  */
-export const PERFECT_COUNT = 10
+export const PERFECT_COUNT = 6
 
 /**
- * 통과선에 닿는 정답 개수. 계산에 쓰지 않고 의도를 남기려고 둔다 —
- * PERFECT_COUNT를 건드리면 이 값도 같이 움직이므로 검사로 묶어둔다.
+ * 통과선(PENALTY_THRESHOLD)에 정확히 닿는 정답 개수.
+ *
+ * 예전에는 표시용 상수였다. 개수를 PERFECT_COUNT로 그냥 나누던 시절에는
+ * 통과선에 닿는 개수가 저절로 정해졌기 때문이다 — 다만 그 방식은 100을
+ * PERFECT_COUNT로 나눈 값이 40을 정확히 짚을 때만 성립했다(5의 배수).
+ * 지금은 통과선과 만점을 각각 정하고 그 사이를 잇는다.
  */
-export const PASS_COUNT = 4
+export const PASS_COUNT = 2
 
 export interface ComputeResultInput {
   correctCount: number
@@ -27,8 +32,25 @@ export interface ComputeResultInput {
 }
 
 /**
- * 개수형 정규화 (설계 §3.5) — `맞힌 수 / 기준 수 × 100`, 0~100으로 clamp.
+ * 맞힌 개수를 0~100으로 환산한다.
  *
+ * 통과선을 기준으로 두 구간이다 — 0개에서 PASS_COUNT개까지가 0점에서 40점,
+ * PASS_COUNT개에서 PERFECT_COUNT개까지가 40점에서 100점. 좌로우로(leftRight)가
+ * 쓰는 방식과 같다.
+ *
+ * 그냥 `맞힌 수 / PERFECT_COUNT × 100`으로 두면 통과 개수와 만점 개수를 따로
+ * 정할 수 없다. 2개 통과·6개 만점을 그 식에 넣으면 2개가 33점이라 통과선
+ * 아래로 떨어진다.
+ */
+export function normalize(correctCount: number): number {
+  if (correctCount < PASS_COUNT) {
+    return Math.max(0, PENALTY_THRESHOLD * (correctCount / PASS_COUNT))
+  }
+  const extra = (correctCount - PASS_COUNT) / (PERFECT_COUNT - PASS_COUNT)
+  return Math.min(100, PENALTY_THRESHOLD + (100 - PENALTY_THRESHOLD) * extra)
+}
+
+/**
  * 시간이 만료돼도 그때까지 맞힌 개수를 그대로 환산한다. 0점 처리는 계약 위반이다.
  */
 export function computeResult({
@@ -37,10 +59,8 @@ export function computeResult({
   timeLimitSec,
   finished,
 }: ComputeResultInput): GameResult {
-  const normalizedScore = Math.min(100, Math.max(0, (correctCount / PERFECT_COUNT) * 100))
-
   return {
-    normalizedScore,
+    normalizedScore: normalize(correctCount),
     score: correctCount,
     // 하나도 못 맞혔으면 "가장 느린 사람"으로 둔다. 0으로 두면 꼴찌가 동점 1등이 된다.
     tiebreakMs: correctCount > 0 ? lastCorrectElapsedMs : timeLimitSec * 1000,
