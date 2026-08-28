@@ -40,6 +40,8 @@ export interface LobbyProps {
    * 누를 수 있음") — App.tsx가 계산해서 넘긴다. */
   canStart: boolean
   onStartSession: () => void
+  /** 방은 그대로 두고 첫 화면으로만 나간다. 방 참여 상태는 유지된다(홈의 "방 재입장"으로 돌아올 수 있다). */
+  onGoHome: () => void
   onLeaveRoom: () => void
   onSettings: () => void
   /** QR 아이콘을 눌렀을 때. 초대 QR을 다시 띄워 새 인원을 받는다 */
@@ -57,6 +59,7 @@ export function Lobby({
   nextSessionLabel,
   canStart,
   onStartSession,
+  onGoHome,
   onLeaveRoom,
   onSettings,
   onShowInviteQr,
@@ -120,6 +123,7 @@ export function Lobby({
             onPress={onReady}
           />
         )}
+        <PillButton label="첫 화면으로" variant="secondary" icon="home" onPress={onGoHome} />
         <PillButton label="집에 갈래" onPress={onLeaveRoom} />
       </View>
     </View>

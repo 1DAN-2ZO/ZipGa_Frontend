@@ -778,6 +778,7 @@ export default function App() {
             lobbyPlayers.filter((p) => !p.isHost).every((p) => readyPlayerIds.has(p.id))
           }
           onStartSession={() => session.start()}
+          onGoHome={() => setScreen('Home')}
           onLeaveRoom={handleLeaveRoom}
           onSettings={openSettings}
           onShowInviteQr={() => {
