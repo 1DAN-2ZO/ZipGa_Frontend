@@ -1,5 +1,6 @@
 import {
   BAR_MS,
+  BEATS_PER_BAR,
   BPM,
   midiToFreq,
   notesForBar,
@@ -19,8 +20,23 @@ describe('midiToFreq', () => {
 })
 
 describe('notesForBar', () => {
-  it('바탕음 하나와 8분음표마다의 음을 낸다', () => {
-    expect(notesForBar(0)).toHaveLength(1 + STEPS_PER_BAR)
+  it('바탕음 하나와, 쉼표를 뺀 8분음표들을 낸다', () => {
+    const notes = notesForBar(0)
+    expect(notes.filter((n) => n.timbre === 'pad')).toHaveLength(1)
+    // 마디 끝 한 칸은 비운다. 빽빽하면 리듬이 아니라 소음으로 들린다.
+    expect(notes.filter((n) => n.timbre === 'lead')).toHaveLength(STEPS_PER_BAR - 1)
+  })
+
+  it('마디 끝에 숨 쉴 자리가 있다', () => {
+    const lead = notesForBar(0).filter((n) => n.timbre === 'lead')
+    const last = Math.max(...lead.map((n) => n.atBeat))
+    expect(last).toBeLessThan(BEATS_PER_BAR - 0.5)
+  })
+
+  it('바탕음과 아르페지오의 음색이 다르다', () => {
+    // 같은 파형이면 뭉쳐서 한 덩어리로 들린다.
+    const kinds = new Set(notesForBar(0).map((n) => n.timbre))
+    expect(kinds).toEqual(new Set(['pad', 'lead']))
   })
 
   it('빠르기가 재촉하는 쪽이다', () => {
@@ -28,9 +44,14 @@ describe('notesForBar', () => {
     expect(BPM).toBeGreaterThanOrEqual(140)
   })
 
-  it('음이 마디 안에 고르게 박힌다', () => {
-    const beats = notesForBar(1).slice(1).map((n) => n.atBeat)
-    expect(beats).toEqual([0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5])
+  it('뒷박이 밀려서 통통 튄다', () => {
+    // 정확히 반박이면 또박또박 기계처럼 간다. 뒤로 밀어야 "쿵-작"이 된다.
+    const beats = notesForBar(1)
+      .filter((n) => n.timbre === 'lead')
+      .map((n) => n.atBeat)
+    const offbeats = beats.filter((b) => b % 1 !== 0)
+    expect(offbeats.length).toBeGreaterThan(0)
+    for (const b of offbeats) expect(b % 1).toBeGreaterThan(0.5)
   })
 
   it('마디 안에 센 박이 있다', () => {
@@ -69,28 +90,31 @@ describe('notesForBar', () => {
     }
   })
 
-  it('단조 화음을 쓰지 않는다', () => {
+  it('모든 마디가 장3화음이다', () => {
     // 장조로 풀리더라도 단조가 섞이면 그 색으로 물들어 처량하게 들린다.
-    // 근음에서 셋째 음까지가 4반음이면 장3도, 3반음이면 단3도다.
+    // 가장 낮은 음에서 재서 0-4-7-12반음이면 장3화음 + 한 옥타브 위 근음이다.
     for (let bar = 0; bar < PROGRESSION_BARS; bar++) {
-      const [, root, third] = notesForBar(bar)
-      const semitones = Math.round(12 * Math.log2(third.freq / root.freq))
-      expect(semitones).toBe(4)
+      const freqs = [
+        ...new Set(notesForBar(bar).filter((n) => n.timbre === 'lead').map((n) => n.freq)),
+      ].sort((a, b) => a - b)
+      const steps = freqs.map((f) => Math.round(12 * Math.log2(f / freqs[0])))
+      expect(steps).toEqual([0, 4, 7, 12])
     }
   })
 
-  it('한 옥타브를 타고 올라갔다 내려온다', () => {
-    // 제자리에서 흔들리기만 하면 바쁘기만 하고 들뜨지 않는다.
-    const [, ...run] = notesForBar(0)
-    const top = Math.max(...run.map((n) => n.freq))
-    const bottom = Math.min(...run.map((n) => n.freq))
-    expect(Math.round(12 * Math.log2(top / bottom))).toBe(12)
+  it('낮은 음과 한 옥타브 위를 번갈아 짚는다', () => {
+    // 곧게 오르내리기만 하면 굴러갈 뿐 튀지 않는다. 공이 튀는 모양이어야 한다.
+    const lead = notesForBar(0).filter((n) => n.timbre === 'lead')
+    const top = Math.max(...lead.map((n) => n.freq))
+    const highs = lead.map((n) => n.freq === top)
+    // 꼭대기 음이 한 칸 걸러 나온다
+    expect(highs.slice(0, 6)).toEqual([false, true, false, true, false, true])
   })
 
   it('중간 마디부터 시작해도 계산된다', () => {
     // 재생 도중에 들어와도 자리가 맞아야 한다.
     expect(() => notesForBar(1234)).not.toThrow()
-    expect(notesForBar(1234)).toHaveLength(1 + STEPS_PER_BAR)
+    expect(notesForBar(1234)).toHaveLength(1 + (STEPS_PER_BAR - 1))
   })
 
   it('폰 스피커가 낼 수 있는 음역 안이다', () => {
