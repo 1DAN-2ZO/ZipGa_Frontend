@@ -34,12 +34,21 @@ export const STEPS_PER_BAR = BEATS_PER_BAR * SUBDIVISION
 /** 화음 진행의 길이(마디). 이만큼 돌고 처음으로 돌아간다. */
 export const PROGRESSION_BARS = 4
 
+/**
+ * 음색.
+ *
+ * lead는 앞에서 튀는 소리, pad는 뒤에 깔리는 소리다. 같은 파형으로 내면
+ * 바탕음이 아르페지오와 뭉쳐 한 덩어리로 들린다.
+ */
+export type Timbre = 'lead' | 'pad'
+
 export interface MusicNote {
-  /** 마디 시작으로부터 몇 박 뒤인가. 8분음표라 0.5 단위가 나온다. */
+  /** 마디 시작으로부터 몇 박 뒤인가. 스윙 때문에 0.6 같은 값이 나온다. */
   atBeat: number
   freq: number
   durationMs: number
   volume: number
+  timbre: Timbre
 }
 
 /** MIDI 번호를 주파수(Hz)로. 69 = A4 = 440Hz. */
@@ -48,14 +57,18 @@ export function midiToFreq(midi: number): number {
 }
 
 /**
- * 화음 진행 (C - F - C - G).
+ * 화음 진행 (C - A - D - G).
  *
- * 단조 화음을 하나도 안 쓴다. 처음엔 Am으로 시작하는 진행을 썼는데, 장조로
- * 풀리더라도 첫 마디가 단조면 전체가 그 색으로 물들어 처량하게 들렸다.
- * 으뜸 - 버금딸림 - 으뜸 - 딸림은 계속 제자리로 돌아와 밝고 단순하다.
+ * 전부 장조다. 처음엔 Am으로 시작하는 진행을 썼는데, 뒤에서 장조로 풀리더라도
+ * 첫 마디가 단조면 전체가 그 색으로 물들어 처량하게 들렸다. 그 다음 C-F-C-G는
+ * 밝긴 한데 제자리만 오가서 동요처럼 밋밋했다.
  *
- * 음을 한 옥타브 올려 잡았다 — 폰 스피커는 300Hz 아래를 거의 못 내서
- * 제대로 된 베이스를 깔아봐야 들리지 않는다. 여기 쓰는 음은 349~1047Hz다.
+ * 이건 래그타임이 쓰는 진행이다. A는 D로, D는 G로, G는 C로 — 각 마디가 다음
+ * 마디를 끌어당겨서 가만히 있지 못하고 계속 굴러간다. 조 밖의 음(C#, F#)이
+ * 섞이지만 모든 소리를 그 화음 안에서만 뽑으므로 어긋나지 않고, 그 덕에
+ * 들뜬 느낌이 난다.
+ *
+ * 폰 스피커는 300Hz 아래를 거의 못 낸다. 여기 쓰는 음은 294~1047Hz다.
  */
 interface Chord {
   /** 바탕음이 짚는 음. 옆 마디와 달라야 화음이 바뀐 게 들린다. */
@@ -65,19 +78,20 @@ interface Chord {
 }
 
 const CHORDS: readonly Chord[] = [
-  { root: 72, voicing: [72, 76, 79, 84] }, // C : C5 E5 G5 C6
-  { root: 65, voicing: [65, 69, 72, 77] }, // F : F4 A4 C5 F5
-  { root: 72, voicing: [72, 76, 79, 84] }, // C
-  { root: 67, voicing: [67, 71, 74, 79] }, // G : G4 B4 D5 G5
+  { root: 72, voicing: [72, 76, 79, 84] }, // C : C5 E5  G5 C6
+  { root: 69, voicing: [69, 73, 76, 81] }, // A : A4 C#5 E5 A5
+  { root: 62, voicing: [62, 66, 69, 74] }, // D : D4 F#4 A4 D5
+  { root: 67, voicing: [67, 71, 74, 79] }, // G : G4 B4  D5 G5
 ]
 
 /**
- * 8분음표마다 화음의 몇 번째 음을 짚을지.
+ * 8분음표마다 화음의 몇 번째 음을 짚을지. null은 쉼표다.
  *
- * 아래에서 위로 올라갔다 내려온다. 근음과 5도를 오가기만 하던 것을 바꿨다 —
- * 제자리에서 흔들리면 바쁘기만 하고, 한 옥타브를 타고 올라가야 들뜬다.
+ * 낮은 음과 한 옥타브 위를 번갈아 짚는다. 공이 튀는 모양 그대로다 — 곧게
+ * 오르내리기만 하면 굴러갈 뿐 튀지 않는다. 마지막 한 칸을 비워 숨을 준다.
+ * 쉼표가 없으면 음이 빽빽해서 리듬이 아니라 소음으로 들린다.
  */
-const PATTERN: readonly number[] = [0, 1, 2, 3, 2, 1, 0, 1]
+const PATTERN: readonly (number | null)[] = [0, 3, 1, 3, 2, 3, 1, null]
 
 /**
  * 8분음표마다의 세기.
@@ -85,7 +99,7 @@ const PATTERN: readonly number[] = [0, 1, 2, 3, 2, 1, 0, 1]
  * 첫 박과 셋째 박을 세게 해 마디 안에 맥이 생긴다. 밋밋하면 빠르기만 하고
  * 신나지는 않는다.
  */
-const STEP_VOLUME: readonly number[] = [0.1, 0.05, 0.06, 0.05, 0.09, 0.05, 0.06, 0.05]
+const STEP_VOLUME: readonly number[] = [0.1, 0.05, 0.085, 0.045, 0.09, 0.05, 0.08, 0]
 
 /**
  * 바탕에 깔리는 음의 세기. 이것만 마디 내내 이어진다.
@@ -105,6 +119,14 @@ const PAD_VOLUME = 0.04
 const STACCATO = 0.55
 
 /**
+ * 스윙. 뒤 8분음표를 얼마나 늦출지(박 단위).
+ *
+ * 0.5면 정확히 반박이라 기계적으로 또박또박 간다. 조금 뒤로 미루면 앞이
+ * 길고 뒤가 짧아져 "쿵-작 쿵-작"으로 튄다. 이게 통통거림의 대부분이다.
+ */
+const SWING = 0.6
+
+/**
  * 이 마디에서 낼 음들.
  *
  * barIndex는 곡 시작부터의 마디 번호다. 진행 길이로 나눈 나머지가 화음을
@@ -120,14 +142,22 @@ export function notesForBar(barIndex: number): MusicNote[] {
     freq: midiToFreq(chord.root),
     durationMs: BAR_MS,
     volume: PAD_VOLUME,
+    timbre: 'pad',
   }
 
-  const drive = PATTERN.map((step, i) => ({
-    atBeat: i / SUBDIVISION,
-    freq: midiToFreq(chord.voicing[step]),
-    durationMs: stepMs * STACCATO,
-    volume: STEP_VOLUME[i],
-  }))
+  const drive: MusicNote[] = []
+  PATTERN.forEach((step, i) => {
+    if (step === null) return
+    // 짝수 칸은 박에 딱 맞고, 홀수 칸은 SWING만큼 뒤로 밀린다.
+    const atBeat = Math.floor(i / SUBDIVISION) + (i % SUBDIVISION === 0 ? 0 : SWING)
+    drive.push({
+      atBeat,
+      freq: midiToFreq(chord.voicing[step]),
+      durationMs: stepMs * STACCATO,
+      volume: STEP_VOLUME[i],
+      timbre: 'lead',
+    })
+  })
 
   return [pad, ...drive]
 }
