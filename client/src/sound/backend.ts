@@ -1,38 +1,21 @@
+import { getAudioContext } from './audioContext'
 import type { AudioBackend } from './synth'
 
 /**
  * Web Audio로 짧은 톤을 낸다.
  *
- * 브라우저는 사용자 제스처 전에 오디오를 열어주지 않는다. 그래서 생성만
- * 해두고 실제 열기는 첫 소리 시점으로 미룬다 — 그 시점이면 사용자가
- * 이미 버튼을 눌렀을 가능성이 높다.
+ * AudioContext는 배경음(music.ts)과 같은 것을 쓴다 — audioContext.ts가
+ * 열기와 깨우기를 맡는다.
  */
 export function createWebAudioBackend(): AudioBackend | null {
   if (typeof window === 'undefined') return null
-
-  const Ctor =
-    window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext })
-      .webkitAudioContext
-  if (!Ctor) return null
-
-  let ctx: AudioContext | null = null
-
-  const ensure = (): AudioContext | null => {
-    try {
-      ctx ??= new Ctor()
-      // 자동재생 정책으로 정지돼 있으면 깨운다.
-      if (ctx.state === 'suspended') void ctx.resume()
-      return ctx
-    } catch {
-      return null
-    }
-  }
+  if (!getAudioContext()) return null
 
   return {
     nowMs: () => Date.now(),
 
     tone(freq, durationMs, volume, delayMs) {
-      const audio = ensure()
+      const audio = getAudioContext()
       if (!audio) return
 
       const startAt = audio.currentTime + delayMs / 1000
