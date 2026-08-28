@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
-import { Watermark } from '../components/Watermark'
 import { useAppSound } from '../sound'
 import { colors, fonts, radius } from '../theme/colors'
 
@@ -57,7 +56,6 @@ export function SoloResult({
 
   return (
     <View style={styles.screen}>
-      <Watermark />
       <ScreenHeader title="혼자하기 결과" onSettings={onSettings} />
 
       <View style={styles.list}>

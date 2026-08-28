@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { ScreenHeader } from '../components/ScreenHeader'
-import { Watermark } from '../components/Watermark'
 import { colors, fonts, radius } from '../theme/colors'
 
 /** 3 · 2 · 1 로 보여준다. 0은 화면에 안 띄운다 — 1이 보이는 동안 자동 진행이 걸린다 */
@@ -88,7 +87,6 @@ export function SessionResult({
 
   return (
     <View style={styles.screen}>
-      <Watermark />
       <ScreenHeader title="최종 결과" onSettings={onSettings} />
 
       {sorted === null ? (

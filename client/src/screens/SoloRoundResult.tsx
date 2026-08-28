@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import { Watermark } from '../components/Watermark'
 import { ROUNDS_PER_SESSION } from '../games/types'
 import { colors, fonts } from '../theme/colors'
 
@@ -31,7 +30,6 @@ export function SoloRoundResult({ gameName, roundIndex, normalizedScore, onDone 
 
   return (
     <View style={styles.screen}>
-      <Watermark />
       <Text style={styles.heading}>{gameName}</Text>
       <Text style={styles.subheading}>{`${roundIndex + 1} / ${ROUNDS_PER_SESSION}판`}</Text>
 
