@@ -1,9 +1,13 @@
 /**
- * 배경음의 가락.
+ * 배경음의 가락 — 래그타임.
  *
  * 음원 파일 없이 코드로 만든다(효과음과 같은 이유 — synth.ts). 긴 곡에는
  * 불리한 방식이라 곡을 쓰려 들지 않고, 네 마디짜리 화음 진행을 끝없이 도는
  * 반주로 잡았다.
+ *
+ * 래그타임인 이유는 이 앱이 술자리 게임이기 때문이다. 왼손이 또박또박
+ * 쿵-짝을 짚는 동안 오른손이 그 사이를 비집고 들어가는 구조라, 급한데
+ * 무겁지 않다.
  *
  * 이 파일은 "무엇을 언제 낼지"만 정한다. 실제 재생과 예약은 music.ts가 맡는다.
  */
@@ -11,8 +15,8 @@
 /**
  * 분당 박자.
  *
- * 처음엔 96으로 잡았는데 술자리 배경으로는 처졌다. 이 앱은 20초 안에 뭔가를
- * 해내야 하는 게임이 계속 도는 곳이라 재촉하는 쪽이 맞는다.
+ * 래그타임 원곡들이 대개 이 언저리다. 더 올리면 왼손의 쿵-짝이 뭉개져
+ * 빠르기만 하고 흥이 안 난다.
  */
 export const BPM = 150
 
@@ -25,30 +29,30 @@ export const BEATS_PER_BAR = 4
 /** 한 마디의 길이(ms) */
 export const BAR_MS = BEAT_MS * BEATS_PER_BAR
 
-/** 한 박을 몇 번으로 쪼개 짚는가. 2면 8분음표. */
-export const SUBDIVISION = 2
-
-/** 한 마디에 짚는 음의 수 */
-export const STEPS_PER_BAR = BEATS_PER_BAR * SUBDIVISION
-
 /** 화음 진행의 길이(마디). 이만큼 돌고 처음으로 돌아간다. */
 export const PROGRESSION_BARS = 4
 
 /**
- * 음색.
+ * 소리의 역할.
  *
- * lead는 앞에서 튀는 소리, pad는 뒤에 깔리는 소리다. 같은 파형으로 내면
- * 바탕음이 아르페지오와 뭉쳐 한 덩어리로 들린다.
+ * 피아노 한 대지만 왼손·오른손이 하는 일이 달라서, 음역과 길이와 세기를
+ * 따로 준다. 음색을 고르는 데도 쓴다(musicBackend.ts).
  */
-export type Timbre = 'lead' | 'pad'
+export type Voice =
+  /** 왼손 1·3박 — "쿵" */
+  | 'bass'
+  /** 왼손 2·4박 — "짝" */
+  | 'chord'
+  /** 오른손 당김음 */
+  | 'melody'
 
 export interface MusicNote {
-  /** 마디 시작으로부터 몇 박 뒤인가. 스윙 때문에 0.6 같은 값이 나온다. */
+  /** 마디 시작으로부터 몇 박 뒤인가. 당김음이라 0.75 같은 값이 나온다. */
   atBeat: number
   freq: number
   durationMs: number
   volume: number
-  timbre: Timbre
+  voice: Voice
 }
 
 /** MIDI 번호를 주파수(Hz)로. 69 = A4 = 440Hz. */
@@ -56,75 +60,59 @@ export function midiToFreq(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12)
 }
 
-/**
- * 화음 진행 (C - A - D - G).
- *
- * 전부 장조다. 처음엔 Am으로 시작하는 진행을 썼는데, 뒤에서 장조로 풀리더라도
- * 첫 마디가 단조면 전체가 그 색으로 물들어 처량하게 들렸다. 그 다음 C-F-C-G는
- * 밝긴 한데 제자리만 오가서 동요처럼 밋밋했다.
- *
- * 이건 래그타임이 쓰는 진행이다. A는 D로, D는 G로, G는 C로 — 각 마디가 다음
- * 마디를 끌어당겨서 가만히 있지 못하고 계속 굴러간다. 조 밖의 음(C#, F#)이
- * 섞이지만 모든 소리를 그 화음 안에서만 뽑으므로 어긋나지 않고, 그 덕에
- * 들뜬 느낌이 난다.
- *
- * 폰 스피커는 300Hz 아래를 거의 못 낸다. 여기 쓰는 음은 294~1047Hz다.
- */
 interface Chord {
-  /** 바탕음이 짚는 음. 옆 마디와 달라야 화음이 바뀐 게 들린다. */
-  root: number
-  /** 아르페지오가 훑는 네 음 — 근음·3도·5도·한 옥타브 위 근음. */
+  /** 왼손이 1박에 짚는 음 */
+  bass: number
+  /** 왼손이 3박에 짚는 음. 보통 5도로 올라가 다음 마디를 준비한다. */
+  bassAlt: number
+  /** 왼손이 2·4박에 던지는 화음 */
+  stab: readonly number[]
+  /** 오른손이 훑는 네 음 — 근음·3도·5도·한 옥타브 위 근음 */
   voicing: readonly number[]
 }
 
+/**
+ * 화음 진행 (C - A - D - G).
+ *
+ * 래그타임이 쓰는 진행이다. A는 D를, D는 G를, G는 C를 끌어당겨서 가만히
+ * 있지 못하고 계속 굴러간다. 전부 장조라 처량한 구석이 없다 — 조 밖의
+ * 음(C#, F#)이 섞이지만 모든 소리를 그 화음 안에서만 뽑으므로 어긋나지
+ * 않고, 오히려 그 덕에 들뜬 느낌이 난다.
+ *
+ * 왼손을 진짜 피아노처럼 낮게 두면 폰 스피커에서 안 들린다 — 300Hz 아래는
+ * 거의 못 낸다. 통째로 올려 베이스를 196Hz 위에 뒀다. 그래서 원곡보다
+ * 가볍고 장난감 피아노에 가깝지만, 안 들리는 것보다 낫다.
+ */
 const CHORDS: readonly Chord[] = [
-  { root: 72, voicing: [72, 76, 79, 84] }, // C : C5 E5  G5 C6
-  { root: 69, voicing: [69, 73, 76, 81] }, // A : A4 C#5 E5 A5
-  { root: 62, voicing: [62, 66, 69, 74] }, // D : D4 F#4 A4 D5
-  { root: 67, voicing: [67, 71, 74, 79] }, // G : G4 B4  D5 G5
+  // C
+  { bass: 60, bassAlt: 55, stab: [67, 72, 76], voicing: [72, 76, 79, 84] },
+  // A
+  { bass: 57, bassAlt: 64, stab: [69, 73, 76], voicing: [69, 73, 76, 81] },
+  // D
+  { bass: 62, bassAlt: 57, stab: [66, 69, 74], voicing: [62, 66, 69, 74] },
+  // G
+  { bass: 55, bassAlt: 62, stab: [67, 71, 74], voicing: [67, 71, 74, 79] },
 ]
 
 /**
- * 8분음표마다 화음의 몇 번째 음을 짚을지. null은 쉼표다.
+ * 오른손이 음을 짚는 자리(박).
  *
- * 낮은 음과 한 옥타브 위를 번갈아 짚는다. 공이 튀는 모양 그대로다 — 곧게
- * 오르내리기만 하면 굴러갈 뿐 튀지 않는다. 마지막 한 칸을 비워 숨을 준다.
- * 쉼표가 없으면 음이 빽빽해서 리듬이 아니라 소음으로 들린다.
+ * 래그타임의 정체는 이 어긋남이다. 16분음표를 3-3-2로 묶어서, 왼손이
+ * 1·2·3·4를 또박또박 짚는 동안 오른손은 0.75·1.5·2.75·3.5처럼 박 사이로
+ * 비껴 들어간다. 이 어긋남이 없으면 아무리 빨라도 그냥 행진곡이다.
  */
-const PATTERN: readonly (number | null)[] = [0, 3, 1, 3, 2, 3, 1, null]
+const MELODY_BEATS: readonly number[] = [0, 0.75, 1.5, 2, 2.75, 3.5]
 
-/**
- * 8분음표마다의 세기.
- *
- * 첫 박과 셋째 박을 세게 해 마디 안에 맥이 생긴다. 밋밋하면 빠르기만 하고
- * 신나지는 않는다.
- */
-const STEP_VOLUME: readonly number[] = [0.1, 0.05, 0.085, 0.045, 0.09, 0.05, 0.08, 0]
+/** 오른손이 그 자리에서 짚는 음(voicing의 몇 번째). 올라갔다 내려오는 활 모양. */
+const MELODY_STEPS: readonly number[] = [0, 2, 3, 2, 1, 2]
 
-/**
- * 바탕에 깔리는 음의 세기. 이것만 마디 내내 이어진다.
- *
- * 한 옥타브 내려 깔다가 올렸다. 폰 스피커가 못 내는 음역(300Hz 아래)이라
- * 들리지도 않으면서 화음이 바뀌는 것만 흐려졌다. 짚는 음과 같은 옥타브에
- * 두면 스타카토로 끊긴 사이를 메워 준다.
- */
-const PAD_VOLUME = 0.04
+/** 오른손 세기. 첫 음과 당겨 들어가는 음을 세게 해서 어긋남이 들린다. */
+const MELODY_VOLUME: readonly number[] = [0.075, 0.06, 0.055, 0.07, 0.06, 0.05]
 
-/**
- * 음 길이를 8분음표의 몇 배로 할지.
- *
- * 1보다 한참 작게 끊는다(스타카토). 이어 붙이면 같은 빠르기여도 늘어져
- * 들리고, 끊으면 몰아친다.
- */
-const STACCATO = 0.55
-
-/**
- * 스윙. 뒤 8분음표를 얼마나 늦출지(박 단위).
- *
- * 0.5면 정확히 반박이라 기계적으로 또박또박 간다. 조금 뒤로 미루면 앞이
- * 길고 뒤가 짧아져 "쿵-작 쿵-작"으로 튄다. 이게 통통거림의 대부분이다.
- */
-const SWING = 0.6
+/** 왼손 "쿵" 세기 */
+const BASS_VOLUME = 0.075
+/** 왼손 "짝" 세기. 화음이라 세 음이 겹치므로 하나하나는 작게 잡는다. */
+const STAB_VOLUME = 0.032
 
 /**
  * 이 마디에서 낼 음들.
@@ -134,30 +122,46 @@ const SWING = 0.6
  */
 export function notesForBar(barIndex: number): MusicNote[] {
   const chord = CHORDS[((barIndex % PROGRESSION_BARS) + PROGRESSION_BARS) % PROGRESSION_BARS]
-  const stepMs = BEAT_MS / SUBDIVISION
+  const notes: MusicNote[] = []
 
-  // 마디 내내 이어지는 바탕음.
-  const pad: MusicNote = {
-    atBeat: 0,
-    freq: midiToFreq(chord.root),
-    durationMs: BAR_MS,
-    volume: PAD_VOLUME,
-    timbre: 'pad',
+  // 왼손 — 쿵(1박) 짝(2박) 쿵(3박) 짝(4박)
+  for (const [beat, midi] of [
+    [0, chord.bass],
+    [2, chord.bassAlt],
+  ] as const) {
+    notes.push({
+      atBeat: beat,
+      freq: midiToFreq(midi),
+      // 다음 "짝"까지 울린다. 왼손이 끊기면 바닥이 사라져 붕 뜬다.
+      durationMs: BEAT_MS * 0.85,
+      volume: BASS_VOLUME,
+      voice: 'bass',
+    })
   }
 
-  const drive: MusicNote[] = []
-  PATTERN.forEach((step, i) => {
-    if (step === null) return
-    // 짝수 칸은 박에 딱 맞고, 홀수 칸은 SWING만큼 뒤로 밀린다.
-    const atBeat = Math.floor(i / SUBDIVISION) + (i % SUBDIVISION === 0 ? 0 : SWING)
-    drive.push({
-      atBeat,
-      freq: midiToFreq(chord.voicing[step]),
-      durationMs: stepMs * STACCATO,
-      volume: STEP_VOLUME[i],
-      timbre: 'lead',
+  for (const beat of [1, 3]) {
+    for (const midi of chord.stab) {
+      notes.push({
+        atBeat: beat,
+        freq: midiToFreq(midi),
+        // 짧게 던진다. 길면 "짝"이 아니라 깔리는 소리가 된다.
+        durationMs: BEAT_MS * 0.32,
+        volume: STAB_VOLUME,
+        voice: 'chord',
+      })
+    }
+  }
+
+  // 오른손 — 박 사이로 비껴 들어간다
+  MELODY_BEATS.forEach((beat, i) => {
+    notes.push({
+      atBeat: beat,
+      freq: midiToFreq(chord.voicing[MELODY_STEPS[i]]),
+      durationMs: BEAT_MS * 0.42,
+      volume: MELODY_VOLUME[i],
+      voice: 'melody',
     })
   })
 
-  return [pad, ...drive]
+  return notes
 }
