@@ -6,7 +6,7 @@ import { colors, fonts } from '../theme/colors'
 export interface HomeProps {
   /** 로컬에 저장된 닉네임. 없으면 첫 실행이다. */
   nickname?: string
-  /** 로컬에 저장된 방 코드가 있을 때만 "아직 안 갈래"를 보여준다. */
+  /** 로컬에 저장된 방 코드가 있을 때만 "방 재입장"을 보여준다. */
   hasStoredRoom?: boolean
   onCreateRoom: () => void
   onJoinRoom: () => void
@@ -39,7 +39,7 @@ export function Home({
 
       <View style={styles.buttons}>
         {hasStoredRoom && (
-          <PillButton label="아직 안 갈래" variant="secondary" onPress={onRejoin} />
+          <PillButton label="방 재입장" variant="secondary" icon="undo" onPress={onRejoin} />
         )}
         <PillButton label="방 만들기" icon="add" onPress={onCreateRoom} />
         <PillButton label="방 참여하기" variant="secondary" icon="login" onPress={onJoinRoom} />
