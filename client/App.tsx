@@ -45,6 +45,7 @@ import { Lobby, type LobbyPlayer } from './src/screens/Lobby'
 import { NextSessionWait } from './src/screens/NextSessionWait'
 import { RoomSetup } from './src/screens/RoomSetup'
 import { RoundResult } from './src/screens/RoundResult'
+import { SoloPlay } from './src/screens/SoloPlay'
 import { SessionResult, type ResultPlayer } from './src/screens/SessionResult'
 import { Settings } from './src/screens/Settings'
 import GameCheckHarness from './src/dev/GameCheckHarness'
@@ -78,6 +79,7 @@ const SCREENS = [
   'RoundResult',
   'SessionResult',
   'GoingHome',
+  'Solo',
   'Game',
   'Settings',
   'GameCheck',
@@ -727,6 +729,7 @@ export default function App() {
             })
           }
           onJoinRoom={() => setScreen('JoinRoom')}
+          onSoloPlay={() => setScreen('Solo')}
           onRejoin={handleRejoin}
           onSettings={openSettings}
         />
@@ -845,6 +848,14 @@ export default function App() {
           // 진짜 재입장(rejoin_room)이 필요하다 — handleRejoin이 storedRoomCode로 처리한다.
           onStay={handleRejoin}
           onGoHome={handleGoHomeFromGoingHome}
+        />
+      )}
+      {/* 방·서버와 완전히 분리된 흐름이라 화면 하나가 3판을 통째로 들고 있다 */}
+      {screen === 'Solo' && (
+        <SoloPlay
+          nickname={nickname ?? undefined}
+          onExit={() => setScreen('Home')}
+          onSettings={openSettings}
         />
       )}
       {screen === 'Game' && <GameSandbox onSettings={openSettings} onGoHome={() => setScreen('Home')} />}

@@ -10,6 +10,14 @@ describe('GAMES', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
+  // 아이콘은 게임 공개(S4)·카운트다운(S5)·결과에서 이름보다 먼저 눈에 들어온다.
+  // 두 게임이 같은 그림을 쓰면 어떤 게임이 나왔는지 한눈에 구별이 안 된다 —
+  // 실제로 틀린 그림 찾기와 두더지 잡기가 둘 다 🐹였다.
+  it('아이콘이 중복되지 않는다', () => {
+    const emojis = GAMES.map((g) => g.info.emoji)
+    expect(new Set(emojis).size).toBe(emojis.length)
+  })
+
   it('모든 게임이 필수 정보를 갖는다', () => {
     for (const g of GAMES) {
       expect(g.info.id).toBeTruthy()

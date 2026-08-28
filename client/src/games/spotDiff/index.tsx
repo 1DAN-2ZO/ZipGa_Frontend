@@ -232,7 +232,7 @@ export const spotDiff: GameModule = {
   info: {
     id: 'spotDiff',
     name: '틀린 그림 찾기',
-    emoji: '🐹',
+    emoji: '🔍',
     desc: '동물 사진 두 장에서 고쳐진 곳을 찾아라',
     timeLimitSec: 20,
   },
