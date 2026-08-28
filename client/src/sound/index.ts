@@ -1,4 +1,6 @@
 import { createWebAudioBackend } from './backend'
+import { createMusic, type Music } from './music'
+import { createMusicBackend } from './musicBackend'
 import { createSynth, type Synth } from './synth'
 
 export type { Note, Synth } from './synth'
@@ -17,5 +19,14 @@ export function setSoundEnabled(enabled: boolean): void {
   synth.setEnabled(enabled)
 }
 
+/**
+ * 앱 전체가 공유하는 배경음.
+ *
+ * 효과음과 따로 두는 이유는 설정에 토글이 둘이기 때문이다 — 배경음만 끄고
+ * 게임 소리는 듣고 싶은 경우가 실제로 많다.
+ */
+export const music: Music = createMusic(createMusicBackend())
+
+export { useBackgroundMusic } from './useBackgroundMusic'
 export { useGameSound, type GameSound } from './useGameSound'
 export { useAppSound, type AppSound } from './useAppSound'

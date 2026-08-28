@@ -12,7 +12,7 @@ import { ROUNDS_PER_SESSION, type GameResult } from './src/games/types'
 import { showAlert } from './src/lib/alerts'
 import { parseRoomDeepLink } from './src/lib/deepLink'
 import { openKakaoTaxi, storeUrl, type TaxiLaunchResult } from './src/lib/kakaoTaxi'
-import { setSoundEnabled, useAppSound } from './src/sound'
+import { setSoundEnabled, useAppSound, useBackgroundMusic } from './src/sound'
 import {
   clearStoredRoomCode,
   getStoredNickname,
@@ -84,6 +84,26 @@ const SCREENS = [
 ] as const
 type ScreenName = (typeof SCREENS)[number]
 
+/**
+ * 배경음이 흐르는 화면.
+ *
+ * 세션이 도는 동안(공개 → 카운트다운 → 게임 → 결과)은 뺀다. 그 구간의 소리는
+ * 장식이 아니라 신호다 — 시작 알림을 놓치면 판이 그냥 지나가고 0점으로 강퇴되고
+ * (webDistribution.md §1.2), 게임 안에서는 초당 일곱 번씩 나는 타격음으로 잘
+ * 맞췄는지를 판단한다. 배경음이 그 위에 깔리면 둘 다 흐려진다.
+ *
+ * 그래서 배경음은 "기다리는 동안"만 흐른다. 술자리에서 실제로 떠들고 있는 구간이다.
+ * 설정 화면을 넣어둔 건 토글을 누르는 순간 바뀌는 게 들려야 하기 때문이다.
+ */
+const MUSIC_SCREENS: readonly ScreenName[] = [
+  'Home',
+  'RoomSetup',
+  'CreateRoom',
+  'JoinRoom',
+  'Lobby',
+  'NextSessionWait',
+  'Settings',
+]
 
 /** remainingMs가 0 이하면 null(=주기 도달, 배지로 전환). 아니면 "분:초" */
 function formatCountdown(remainingMs: number): string | null {
@@ -135,7 +155,12 @@ export default function App() {
   useEffect(() => {
     setSoundEnabled(soundEffectsEnabled)
   }, [soundEffectsEnabled])
+
   const [backgroundMusicEnabled, setBackgroundMusicEnabled] = useState(true)
+
+  // 기다리는 화면에서만 흐른다. 세션이 도는 동안은 소리가 신호라 비켜준다.
+  useBackgroundMusic(backgroundMusicEnabled && MUSIC_SCREENS.includes(screen))
+
   const [launch, setLaunch] = useState<TaxiLaunchResult | null>(null)
   /** GoingHome이 벌칙(집 가)인지 자발적 귀가(집에 갈래)인지 — 문구만 다르고 경로는 같다 */
   const [goingHomeReason, setGoingHomeReason] = useState<'penalty' | 'voluntary'>('penalty')
