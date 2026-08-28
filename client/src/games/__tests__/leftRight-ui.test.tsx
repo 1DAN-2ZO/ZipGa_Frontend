@@ -432,3 +432,70 @@ describe('보낸 고양이 날리기', () => {
     expect(screen.getAllByTestId(/^queue-fur-/)).toHaveLength(QUEUE_VISIBLE)
   })
 })
+
+/**
+ * 틀렸을 때 뜨는 ✕.
+ *
+ * 버튼이 빨개지는 것과 아래 한 줄 문구는 눈이 가 있는 곳(줄 맨 앞 고양이)에서
+ * 멀어, 빠르게 두드리는 중에는 틀린 줄 모르고 지나갔다. 보고 있던 자리에 띄운다.
+ */
+describe('틀렸을 때 ✕', () => {
+  const mark = () => screen.queryByTestId('wrong-mark')
+
+  it('평소에는 안 뜬다', async () => {
+    await renderGame()
+
+    expect(mark()).toBeNull()
+  })
+
+  it('틀린 쪽으로 보내면 뜬다', async () => {
+    const seed = 7
+    const lineup = makeLineup(seed)
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, lineup)
+    const wrong: Side = sideOf(lineup, first) === 'left' ? 'right' : 'left'
+    await renderGame(seed)
+
+    await send(wrong)
+
+    expect(mark()).not.toBeNull()
+  })
+
+  it('맞게 보내면 안 뜬다', async () => {
+    const seed = 7
+    const lineup = makeLineup(seed)
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, lineup)
+    await renderGame(seed)
+
+    await send(sideOf(lineup, first))
+
+    expect(mark()).toBeNull()
+  })
+
+  it('잠금이 풀리면 같이 사라진다', async () => {
+    const seed = 7
+    const lineup = makeLineup(seed)
+    const [first] = makeCats(seed, CAT_QUEUE_LENGTH, lineup)
+    const wrong: Side = sideOf(lineup, first) === 'left' ? 'right' : 'left'
+    await renderGame(seed)
+
+    await send(wrong)
+    await advanceBy(WRONG_LOCK_MS + 50)
+
+    expect(mark()).toBeNull()
+  })
+
+  it('다음에 또 틀리면 다시 뜬다', async () => {
+    const seed = 7
+    const lineup = makeLineup(seed)
+    const cats = makeCats(seed, CAT_QUEUE_LENGTH, lineup)
+    const wrongFor = (color: (typeof cats)[number]): Side =>
+      sideOf(lineup, color) === 'left' ? 'right' : 'left'
+    await renderGame(seed)
+
+    await send(wrongFor(cats[0]))
+    await advanceBy(WRONG_LOCK_MS + 50)
+    await send(wrongFor(cats[1]))
+
+    expect(mark()).not.toBeNull()
+  })
+})

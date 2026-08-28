@@ -6,6 +6,7 @@ import type { GameModule, GameProps } from '../types'
 import { Backdrop } from './Backdrop'
 import { Cat } from './Cat'
 import { Queue, type FlyingCatState } from './Queue'
+import { WrongMark } from './WrongMark'
 import {
   CAT_QUEUE_LENGTH,
   COLOR_LABELS,
@@ -214,6 +215,8 @@ function LeftRightGame({ seed, timeLimitSec, onFinish }: GameProps) {
           <Text testID="cat-color" style={styles.catLabel}>
             {COLOR_LABELS[color]}
           </Text>
+          {/* 틀린 동안(WRONG_LOCK_MS)만 떠 있다. 잠금이 풀리면 wrongSide가 비면서 같이 사라진다 */}
+          {wrongSide !== null && <WrongMark />}
         </View>
 
         <View style={styles.gateColumn}>
