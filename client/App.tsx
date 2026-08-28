@@ -6,6 +6,8 @@ import {
 } from '@expo-google-fonts/quicksand'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Linking, Platform, View } from 'react-native'
+// 웹 전용. 네이티브 번들에 DOM 의존 코드가 섞이지 않도록 아래에서 web일 때만 렌더한다.
+import { Analytics } from '@vercel/analytics/react'
 import { NicknameSheet } from './src/components/NicknameSheet'
 import { getGame } from './src/games/registry'
 import { ROUNDS_PER_SESSION, type GameResult } from './src/games/types'
@@ -700,6 +702,7 @@ export default function App() {
 
   return (
     <View style={{ flex: 1 }}>
+      {Platform.OS === 'web' && <Analytics />}
       {screen === 'Home' && (
         <Home
           nickname={nickname ?? undefined}
