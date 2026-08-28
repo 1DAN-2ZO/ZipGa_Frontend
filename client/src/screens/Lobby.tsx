@@ -1,9 +1,12 @@
-import { FlatList, StyleSheet, Text, View } from 'react-native'
+import { FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { Watermark } from '../components/Watermark'
 import { colors, fonts, radius } from '../theme/colors'
 import { rankDelta } from './lobbyRank'
+
+const SURVEY_URL =
+  'https://docs.google.com/forms/d/e/1FAIpQLSeEnLVgPgudsqAdiCYttzgH72Ytgser1-w5rPh_CGE9_qHMZg/viewform?usp=header'
 
 export interface LobbyPlayer {
   id: string
@@ -127,6 +130,14 @@ export function Lobby({
         )}
         <PillButton label="첫 화면으로" variant="secondary" icon="home" onPress={onGoHome} />
         <PillButton label="집에 갈래" onPress={onLeaveRoom} />
+        <Pressable
+          testID="survey-link"
+          onPress={() => Linking.openURL(SURVEY_URL)}
+          style={styles.surveyLink}
+          hitSlop={8}
+        >
+          <Text style={styles.surveyLinkText}>ZipGa 설문 참여하기 🔗</Text>
+        </Pressable>
       </View>
     </View>
   )
@@ -333,5 +344,15 @@ const styles = StyleSheet.create({
   buttons: {
     gap: 12,
     paddingBottom: 32,
+  },
+  surveyLink: {
+    alignItems: 'center',
+    marginTop: 8,
+    paddingVertical: 8,
+  },
+  surveyLinkText: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.primary,
   },
 })
