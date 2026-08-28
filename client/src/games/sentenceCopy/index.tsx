@@ -156,6 +156,39 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
     if (isWrong) setIsWrong(false)
   }
 
+  /**
+   * 맞춘 개수와 남은 시간.
+   *
+   * 자리가 두 군데인 이유가 이 게임의 유일한 레이아웃 규칙이다.
+   * 키보드가 올라오면 화면 맨 위는 못 믿는다 — 안드로이드가 창을 밀어
+   * 올리면(pan) 위쪽이 통째로 화면 밖으로 나가고, iOS도 키보드가 덮는
+   * 방식이라 무엇이 남을지는 기기·설정마다 다르다. 확실한 건 하나뿐이다.
+   * 어떤 방식이든 **입력창은 반드시 보인다** — 안 그러면 글자를 칠 수가 없다.
+   * 그래서 키보드가 올라온 동안에는 시간을 입력창 바로 위에 붙여 같이 산다.
+   */
+  const hud = (
+    <View
+      testID={compact ? 'hud-near-input' : 'hud-top'}
+      style={[styles.hud, compact && styles.hudNearInput]}
+    >
+      <View style={styles.hudBlock}>
+        {!compact && <Text style={styles.hudLabel}>맞춘 개수</Text>}
+        <Text testID="correct-count" style={[styles.count, compact && styles.countCompact]}>
+          {correctCount}
+        </Text>
+      </View>
+      <View style={[styles.hudBlock, styles.hudBlockRight]}>
+        {!compact && <Text style={styles.hudLabel}>남은 시간</Text>}
+        <Text
+          testID="time-left"
+          style={[styles.timer, compact && styles.countCompact, timeLeft <= 5 && styles.timerUrgent]}
+        >
+          {timeLeft}
+        </Text>
+      </View>
+    </View>
+  )
+
   return (
     <KeyboardAvoidingView
       testID="game-root"
@@ -169,23 +202,8 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       onLayout={(e) => setAvailableHeight(e.nativeEvent.layout.height)}
     >
-      <View style={styles.hud}>
-        <View style={styles.hudBlock}>
-          {!compact && <Text style={styles.hudLabel}>맞춘 개수</Text>}
-          <Text testID="correct-count" style={[styles.count, compact && styles.countCompact]}>
-            {correctCount}
-          </Text>
-        </View>
-        <View style={[styles.hudBlock, styles.hudBlockRight]}>
-          {!compact && <Text style={styles.hudLabel}>남은 시간</Text>}
-          <Text
-            testID="time-left"
-            style={[styles.timer, compact && styles.countCompact, timeLeft <= 5 && styles.timerUrgent]}
-          >
-            {timeLeft}
-          </Text>
-        </View>
-      </View>
+      {/* 키보드가 없을 때만 위에 둔다. 올라오면 입력창 옆으로 내려간다(아래 hud). */}
+      {!compact && hud}
 
       {/*
         남는 공간을 여기서 다 먹어 문장을 입력창 쪽으로 끌어내린다.
@@ -219,6 +237,9 @@ function SentenceCopyGame({ seed, timeLimitSec, onFinish }: GameProps) {
           {currentSentence}
         </Text>
       </ScrollView>
+
+      {/* 키보드가 올라오면 여기다. 입력창과 붙어 있어야 같이 살아남는다. */}
+      {compact && hud}
 
       <View style={styles.inputRow}>
       <TextInput
@@ -306,6 +327,13 @@ const styles = StyleSheet.create({
   sentence: { color: colors.textPrimary, fontSize: 30, fontWeight: '700', lineHeight: 42 },
   /** 키보드가 올라온 동안 쓰는 축소본 */
   countCompact: { fontSize: 26 },
+  /**
+   * 입력창 바로 위에 붙는 축소본 HUD.
+   *
+   * 아래쪽 정렬이라 숫자가 입력창 쪽으로 붙는다 — 눈이 입력창에 가 있을 때
+   * 시간이 시야 안에 들어온다.
+   */
+  hudNearInput: { alignItems: 'flex-end', marginBottom: 6 },
   sentenceCompact: { fontSize: 24, lineHeight: 33 },
   /** 입력창과 보내기 버튼을 한 줄에 놓는다 */
   inputRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },

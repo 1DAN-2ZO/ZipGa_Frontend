@@ -355,6 +355,63 @@ describe('남은 높이가 좁을 때 (웹·Android)', () => {
 })
 
 /**
+ * 키보드가 올라오면 남은 시간이 안 보인다는 제보.
+ *
+ * 원인이 플랫폼마다 다르다 — 안드로이드는 창을 통째로 밀어 올려(pan) 화면
+ * 위쪽이 밖으로 나가고, iOS는 키보드가 덮는다. 어느 쪽이 걸릴지는 기기·설정
+ * 마다 달라서 "위쪽이 남는다"를 전제로는 못 고친다.
+ *
+ * 그래서 자리를 옮긴다. 어떤 방식이든 입력창만은 반드시 보이므로(안 보이면
+ * 글자를 칠 수가 없다) 키보드가 올라온 동안에는 시간을 입력창에 붙여둔다.
+ */
+describe('키보드가 올라와도 남은 시간이 보인다', () => {
+  const layout = async (height: number) => {
+    await act(async () => {
+      fireEvent(screen.getByTestId('game-root'), 'layout', {
+        nativeEvent: { layout: { width: 390, height } },
+        persist: () => {},
+      })
+    })
+  }
+
+  it('키보드가 없으면 화면 맨 위에 있다', async () => {
+    await renderGame(20260826)
+
+    await layout(844)
+
+    expect(screen.queryByTestId('hud-top')).not.toBeNull()
+    expect(screen.queryByTestId('hud-near-input')).toBeNull()
+  })
+
+  it('키보드가 올라오면 입력창 옆으로 내려온다', async () => {
+    await renderGame(20260826)
+
+    await layout(400)
+
+    expect(screen.queryByTestId('hud-top')).toBeNull()
+    expect(screen.queryByTestId('hud-near-input')).not.toBeNull()
+  })
+
+  it('자리를 옮겨도 남은 시간은 계속 보인다', async () => {
+    await renderGame(20260826)
+
+    await layout(400)
+    await advance(5000)
+
+    expect(screen.getByTestId('time-left')).toHaveTextContent('15')
+    expect(screen.getByTestId('correct-count')).toBeTruthy()
+  })
+
+  it('남은 시간은 어느 자리에 있든 하나뿐이다', async () => {
+    await renderGame(20260826)
+
+    await layout(400)
+
+    expect(screen.getAllByTestId('time-left')).toHaveLength(1)
+  })
+})
+
+/**
  * iOS는 키보드가 화면을 덮기만 하고 창을 줄이지 않는다. 그대로 두면
  * 입력창이 키보드 뒤로 숨어서 아무것도 칠 수 없다.
  * Android는 창 자체가 resize되므로 여기서 또 밀면 두 번 밀린다.
