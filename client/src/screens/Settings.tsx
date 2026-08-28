@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Watermark } from '../components/Watermark'
 import { colors, fonts, radius } from '../theme/colors'
 
 export interface SettingsProps {
@@ -22,6 +23,7 @@ export function Settings({
 }: SettingsProps) {
   return (
     <View style={styles.screen}>
+      <Watermark />
       <ScreenHeader title="설정" onBack={onBack} />
 
       <View style={styles.list}>

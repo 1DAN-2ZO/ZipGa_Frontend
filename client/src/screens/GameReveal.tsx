@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
+import { Watermark } from '../components/Watermark'
 import { getGame } from '../games/registry'
 import type { RoundPlan } from '../session/lineup'
 import { colors, fonts, radius } from '../theme/colors'
@@ -35,6 +36,7 @@ export function GameReveal({ plan, onDone }: GameRevealProps) {
 
   return (
     <View style={styles.screen}>
+      <Watermark />
       <Text style={styles.heading}>이번 세션의 게임</Text>
 
       <View style={styles.list}>

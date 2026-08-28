@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Watermark } from '../components/Watermark'
 import { colors, fonts, radius } from '../theme/colors'
 
 export interface RoomSetupProps {
@@ -23,6 +24,7 @@ export function RoomSetup({ onBack, onSettings, onNext }: RoomSetupProps) {
 
   return (
     <View style={styles.screen}>
+      <Watermark />
       <ScreenHeader title="ZipGa" onBack={onBack} onSettings={onSettings} />
 
       <Text style={styles.heading}>방 세팅</Text>

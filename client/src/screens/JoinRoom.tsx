@@ -3,6 +3,7 @@ import { StyleSheet, Text, TextInput, View } from 'react-native'
 import { PillButton } from '../components/PillButton'
 import { QrScanBox } from '../components/QrScanBox'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Watermark } from '../components/Watermark'
 import { CODE_LENGTH, isCompleteRoomCode, normalizeRoomCode } from '../lib/roomCode'
 import { colors, fonts, radius } from '../theme/colors'
 
@@ -20,6 +21,7 @@ export function JoinRoom({ onBack, onSettings, onSubmitCode, loading, errorMessa
 
   return (
     <View style={styles.screen}>
+      <Watermark />
       <ScreenHeader title="ZipGa" onBack={onBack} onSettings={onSettings} />
 
       <Text style={styles.heading}>QR 코드로 참여하기</Text>

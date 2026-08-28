@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { StyleSheet, Text, TextInput, View } from 'react-native'
 import { PillButton } from '../components/PillButton'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Watermark } from '../components/Watermark'
 import { pickGames } from '../games/registry'
 import { PENALTY_THRESHOLD, validateGameResult } from '../games/types'
 import type { GameModule, GameResult } from '../games/types'
@@ -48,6 +49,7 @@ export function GameSandbox({ onSettings, onGoHome }: { onSettings: () => void; 
   if (phase.name === 'playing') {
     return (
       <View style={styles.screen}>
+        <Watermark />
         <phase.game.Component
           key={`${phase.game.info.id}-${phase.seed}`}
           seed={phase.seed}
@@ -62,6 +64,7 @@ export function GameSandbox({ onSettings, onGoHome }: { onSettings: () => void; 
     const penalized = phase.result.normalizedScore < PENALTY_THRESHOLD
     return (
       <View style={styles.screen}>
+        <Watermark />
         <ScreenHeader title="결과" onSettings={onSettings} />
         <View style={styles.center}>
           <Text style={styles.label}>잡은 수</Text>
@@ -83,6 +86,7 @@ export function GameSandbox({ onSettings, onGoHome }: { onSettings: () => void; 
 
   return (
     <View style={styles.screen}>
+      <Watermark />
       <ScreenHeader
         title="미니게임 확인"
         onSettings={onSettings}
