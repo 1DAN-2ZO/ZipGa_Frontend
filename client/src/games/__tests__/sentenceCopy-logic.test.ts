@@ -166,31 +166,45 @@ describe('computeResult', () => {
 /**
  * 몇 개를 쳐야 통과하고 몇 개면 만점인가.
  *
- * 예전에는 기준이 5개라 20초에 두 개만 쳐도 통과선을 넘었다. 세션은 3판
- * 평균으로 벌칙을 정하는데, 게임마다 난이도가 들쭉날쭉하면 어떤 게임이
- * 뽑히느냐가 벌칙을 좌우한다.
+ * 세션은 3판 평균으로 벌칙을 정하므로 이 두 지점이 게임의 난이도 그 자체다.
+ * 개수를 만점 기준으로 그냥 나누던 때에는 두 지점을 따로 정할 수 없었다 —
+ * 지금은 통과선과 만점을 각각 못 박고 그 사이를 잇는다.
  */
 describe('통과·만점 기준', () => {
   const scoreFor = (correctCount: number) =>
     computeResult({ correctCount, lastCorrectElapsedMs: 5000, timeLimitSec: 20, finished: true })
       .normalizedScore
 
-  it('4개를 맞히면 통과선에 닿는다', () => {
+  it('2개를 맞히면 통과선에 닿는다', () => {
+    expect(PASS_COUNT).toBe(2)
     expect(scoreFor(PASS_COUNT)).toBe(PENALTY_THRESHOLD)
   })
 
-  it('3개까지는 통과선을 못 넘는다', () => {
+  it('1개까지는 통과선을 못 넘는다', () => {
     expect(scoreFor(PASS_COUNT - 1)).toBeLessThan(PENALTY_THRESHOLD)
   })
 
-  it('10개를 맞히면 만점이다', () => {
+  it('6개를 맞히면 만점이다', () => {
+    expect(PERFECT_COUNT).toBe(6)
     expect(scoreFor(PERFECT_COUNT)).toBe(100)
   })
 
-  it('한 개당 10점씩 오른다', () => {
-    // 4개 40점에서 10개 100점까지 고르게 오른다.
-    for (let n = 0; n <= PERFECT_COUNT; n++) {
-      expect(scoreFor(n)).toBe(n * 10)
+  it('통과선 아래는 0점에서 40점까지 고르게 오른다', () => {
+    expect(scoreFor(0)).toBe(0)
+    expect(scoreFor(1)).toBe(20)
+    expect(scoreFor(2)).toBe(40)
+  })
+
+  it('통과선 위는 40점에서 100점까지 고르게 오른다', () => {
+    expect(scoreFor(3)).toBe(55)
+    expect(scoreFor(4)).toBe(70)
+    expect(scoreFor(5)).toBe(85)
+    expect(scoreFor(6)).toBe(100)
+  })
+
+  it('한 개라도 더 맞히면 점수가 반드시 오른다', () => {
+    for (let n = 1; n <= PERFECT_COUNT; n++) {
+      expect(scoreFor(n)).toBeGreaterThan(scoreFor(n - 1))
     }
   })
 
