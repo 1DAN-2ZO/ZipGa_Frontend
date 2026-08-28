@@ -215,7 +215,7 @@ const s = StyleSheet.create({
   head: { paddingTop: 40, paddingHorizontal: 20 },
   scoreText: { fontFamily: fonts.heading, fontSize: 112, color: colors.primary, textAlign: 'center' },
   subWrap: { marginTop: 10 },
-  subText: { fontFamily: fonts.bold, fontSize: 19, color: COLORS.accent, textAlign: 'center' },
+  subText: { fontFamily: fonts.bold, fontSize: 19, color: COLORS.brand, textAlign: 'center' },
 
   bar: {
     height: 12, marginHorizontal: 22, marginTop: 20,
@@ -272,7 +272,7 @@ const s = StyleSheet.create({
 
   input: {
     width: '100%', maxWidth: 340, paddingVertical: 18, borderRadius: 22,
-    borderWidth: 4, borderColor: COLORS.accent, backgroundColor: COLORS.surface,
+    borderWidth: 4, borderColor: COLORS.brand, backgroundColor: COLORS.surface,
     fontSize: 42, fontWeight: '900', color: COLORS.text,
   },
   inputWrong: { borderColor: COLORS.bad },

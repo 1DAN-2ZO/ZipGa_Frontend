@@ -4,6 +4,7 @@ import type { GestureResponderEvent } from 'react-native';
 import { useGameSound } from '../../sound'
 import type { GameModule, GameProps } from '../types';
 import { COLORS } from '../../theme';
+import { colors, fonts } from '../../theme/colors';
 import {
   COUNTDOWN_MS,
   EXIT_MS,
@@ -52,29 +53,6 @@ const RULER_W = 120;
 const TICK_STEP_CM = 5;
 
 type Phase = 'count' | 'armed' | 'emerging' | 'result';
-
-/** RN 에는 텍스트 외곽선이 없어서 같은 글자를 여러 번 겹쳐 찍는다. */
-function Outlined({ text, size, color }: { text: string; size: number; color?: string }) {
-  const OFF = Math.max(2, Math.round(size * 0.055));
-  const dirs: [number, number][] = [
-    [-OFF, 0], [OFF, 0], [0, -OFF], [0, OFF],
-    [-OFF, -OFF], [OFF, -OFF], [-OFF, OFF], [OFF, OFF],
-  ];
-  const base = { fontSize: size, fontWeight: '900' as const, textAlign: 'center' as const };
-  return (
-    <View style={{ height: size * 1.15, justifyContent: 'center' }}>
-      {dirs.map(([dx, dy], i) => (
-        <Text
-          key={i}
-          style={[base, st.stackText, { color: COLORS.text, transform: [{ translateX: dx }, { translateY: dy }] }]}
-        >
-          {text}
-        </Text>
-      ))}
-      <Text style={[base, st.stackText, { color: color ?? COLORS.accent }]}>{text}</Text>
-    </View>
-  );
-}
 
 function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
   const sound = useGameSound()
@@ -319,8 +297,8 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
   return (
     <Pressable testID="game-root" style={st.wrap} onPressIn={tap} accessibilityLabel="떨어지는 자를 터치하세요">
       <View style={st.head}>
-        <Outlined text={big} size={phase === 'count' ? 104 : 88} />
-        <View style={st.subWrap}><Outlined text={sub} size={19} /></View>
+        <Text style={[st.scoreText, phase === 'count' && st.scoreTextCount]}>{big}</Text>
+        <View style={st.subWrap}><Text style={st.subText}>{sub}</Text></View>
       </View>
 
       <View style={st.slots}>
@@ -369,7 +347,9 @@ function RulerCatchGame({ seed, timeLimitSec, onFinish }: GameProps) {
         )}
         {readout && (
           <View style={st.readout} pointerEvents="none">
-            <Outlined text={readout.text} size={24} color={readout.bad ? COLORS.bad : COLORS.accent} />
+            <Text style={[st.readoutText, { color: readout.bad ? COLORS.bad : COLORS.brand }]}>
+              {readout.text}
+            </Text>
           </View>
         )}
         <View style={[st.bar, st.barBot]} />
@@ -392,8 +372,10 @@ const st = StyleSheet.create({
   wrap: { flex: 1, width: '100%', backgroundColor: COLORS.bg, userSelect: 'none' },
 
   head: { paddingTop: 40, paddingHorizontal: 20, zIndex: 8 },
-  stackText: { position: 'absolute', left: 0, right: 0 },
+  scoreText: { fontFamily: fonts.heading, fontSize: 88, color: colors.primary, textAlign: 'center' },
+  scoreTextCount: { fontSize: 104 },
   subWrap: { marginTop: 10 },
+  subText: { fontFamily: fonts.bold, fontSize: 19, color: COLORS.brand, textAlign: 'center' },
 
   slots: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, marginTop: 30, zIndex: 8 },
   slot: {
@@ -401,7 +383,7 @@ const st = StyleSheet.create({
     borderWidth: 3, borderColor: 'transparent',
     alignItems: 'center', justifyContent: 'center',
   },
-  slotOn: { backgroundColor: COLORS.surface, borderColor: COLORS.accent },
+  slotOn: { backgroundColor: COLORS.surface, borderColor: COLORS.brand },
   slotText: { color: COLORS.text, fontWeight: '800', fontSize: 16 },
   slotX: { color: COLORS.bad, fontWeight: '900', fontSize: 22 },
   slotDash: { color: COLORS.text, opacity: 0.45, fontSize: 20, fontWeight: '800' },
@@ -429,6 +411,7 @@ const st = StyleSheet.create({
   tick: { position: 'absolute', left: 0, height: 3, borderRadius: 2, backgroundColor: C.tick },
 
   readout: { position: 'absolute', left: 0, right: 0, bottom: 48, zIndex: 5 },
+  readoutText: { fontFamily: fonts.bold, fontSize: 24, textAlign: 'center' },
 });
 
 export const rulercatch: GameModule = {
