@@ -114,7 +114,7 @@ export function Lobby({
         {!isHost && (
           <PillButton
             testID="ready-button"
-            label={readyPlayerIds.has(myPlayerId) ? '준비완료' : '대기중'}
+            label={readyPlayerIds.has(myPlayerId) ? '게임 대기 중' : '준비'}
             variant="secondary"
             disabled={readyPlayerIds.has(myPlayerId)}
             onPress={onReady}
