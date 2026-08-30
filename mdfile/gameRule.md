@@ -1,5 +1,9 @@
 # P2 게임 계약 Implementation Plan
 
+> **[보관] 이 계획은 끝났다.** 여기 적힌 체크박스를 따라 새로 작업하지 말 것.
+> 결과물은 `client/src/`에 있고 그쪽이 항상 최신이다. 이 문서는 "왜 이렇게 짰나"를
+> 되짚을 때만 본다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 미니게임 담당자 9명이 서로를 기다리지 않고 즉시 병렬 착수할 수 있도록, 게임 모듈 계약과 참조 구현 1개를 완성한다.
