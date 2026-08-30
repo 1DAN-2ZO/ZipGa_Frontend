@@ -78,11 +78,15 @@ jipga://room/{코드}            ← 기존
 
 전 화면 라우팅(expo-router 등)은 도입하지 않는다. URL이 실제로 필요한 곳은 초대 링크 하나뿐이고, **게임 중 뒤로가기로 이탈하면 0점**이라 오히려 위험하다. 지금 팀 전원이 `App.tsx` 위에서 작업 중이라는 점도 고려했다.
 
-### A.3 빌드와 호스팅
+### A.3 빌드와 호스팅 ✅ 완료
+
+**배포됨 → https://zip-ga-frontend.vercel.app/**
+
+설정은 `client/vercel.json`에 있다. 아래는 계획 당시의 기록이며, 실제 값은 그 파일이 기준이다.
 
 ```
-빌드          npx expo export --platform web   →  client/dist/
-호스팅        Vercel 또는 Cloudflare Pages
+빌드          npx expo export -p web           →  client/dist/
+호스팅        Vercel (확정)
 환경변수      EXPO_PUBLIC_SUPABASE_URL
               EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 SPA fallback  모든 경로 → /index.html

@@ -121,6 +121,35 @@ const finish = (completed: boolean) => {
 }
 ```
 
+## 소리 — 다섯 마디만 알면 된다
+
+오디오 코드를 짤 필요가 없다. 훅 하나를 부르고 "무슨 일이 일어났는지"만 알리면
+실제 소리는 앱이 정한다. 게임 10종의 톤이 갈라지지 않고, 설정의 "효과음 끄기"도
+각자 지킬 필요가 없다.
+
+```tsx
+import { useGameSound } from '../../sound'
+
+function MyGame({ seed, timeLimitSec, onFinish }: GameProps) {
+  const sound = useGameSound()
+  // ...
+  sound.hit()      // 잘한 것 — 정답 · 명중 · 획득
+  sound.miss()     // 못한 것 — 오답 · 놓침 · 피격
+  sound.penalty()  // 치면 안 되는 걸 건드림 — 폭탄 · 함정
+  sound.tick()     // 중립 동작 — 연타 · 카드 뒤집기 · 타자
+  sound.finish()   // 완주 · 목표 달성
+}
+```
+
+이 다섯이 10종을 전부 덮는다. 새 소리가 필요하다고 느끼면 먼저 물어볼 것 —
+대개는 위 다섯 중 하나로 표현된다. 연타처럼 초당 여러 번 부르는 경우도
+쿨다운이 안에서 걸리므로 그냥 부르면 된다.
+
+**볼륨을 직접 만지지 않는다.** 균형은 `sound/useGameSound.ts` 한 곳에서 잡는다.
+배경음이 이 아래에 깔리는데(효과음의 1/3 이하), 게임에서 임의로 키우면 그 균형이 깨진다.
+
+---
+
 ## 등록하기
 
 `client/src/games/registry.ts`에 두 줄만 추가한다. **여기가 유일한 공유 지점이다.**

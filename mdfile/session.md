@@ -1,5 +1,9 @@
 # P4 세션 엔진 Implementation Plan
 
+> **[보관] 이 계획은 끝났다.** 여기 적힌 체크박스를 따라 새로 작업하지 말 것.
+> 결과물은 `client/src/`에 있고 그쪽이 항상 최신이다. 이 문서는 "왜 이렇게 짰나"를
+> 되짚을 때만 본다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 한 세션(랜덤 3판)을 처음부터 끝까지 굴리는 로직을 화면 없이 완성한다. 화면은 이 위에 얹기만 하면 되도록 한다.
