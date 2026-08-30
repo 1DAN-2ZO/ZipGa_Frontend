@@ -53,6 +53,8 @@ mdfile/           문서
 | [webDistribution](mdfile/webDistribution.md) | 웹 배포(완료)와 알림(미착수) |
 | [gameRule](mdfile/gameRule.md) · [session](mdfile/session.md) | 보관용 — 다 끝난 구현 계획서 |
 
+**발표 준비는 [presentation/](presentation/README.md).** 슬라이드 구성·대본·시연 순서·예상 질문이 들어 있다.
+
 ## 규칙 두 가지
 
 **게임은 서로를 모른다.** 서버도 다른 플레이어도 모른 채 `seed`를 받아 문제를 만들고
